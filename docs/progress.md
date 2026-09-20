@@ -3,15 +3,21 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestone 0 is partly done. `app/` is scaffolded (electron-vite, React + TS), hardened to the project's Electron security rules, and now styled with Tailwind v4 plus the design tokens and locally bundled Sora/Manrope fonts. Typecheck, lint, 5 Vitest tests and `npm run build` pass, and `npm run dev` starts cleanly. It renders only a placeholder screen, which I have not checked visually. The scaffold is committed (`988b742`); the step 3 changes are done but not yet committed. No installer has been built.
+Milestone 0 is partly done. `app/` is scaffolded (electron-vite, React + TS), hardened to the project's Electron security rules, and styled with Tailwind v4 plus the design tokens and locally bundled Sora/Manrope fonts (committed: `988b742`, `92fe492`). The full `src/main` folder layout now exists (step 5, uncommitted). The placeholder window was checked visually and looks right. Typecheck passes; no installer has been built.
 
 ## In Progress
-Nothing active. Milestone 0 steps 1, 2, 3 and 4 are done. Step 3 got two `/review` passes; the second found no problems.
+Nothing active. Milestone 0 steps 1 to 5 are done. Step 5 got a `/review` pass with no problems found.
 
 ## Next Up
-Milestone 0 step 5: create the remaining `src/main` folders (ipc, storage, library, stores/{steam,epic}), then step 6 (Windows installer via a GitHub Actions workflow). Before step 6, look at the app window once to confirm the tokens and fonts render as intended.
+Milestone 0 step 6: Windows installer built by a GitHub Actions workflow (the dev machine is macOS).
 
 ---
+
+## 2026-09-20 (Milestone 0: main folders + visual check)
+**Built:** `src/main/{ipc,storage,library,stores/steam,stores/epic}/`, each holding only a `.gitkeep` so git tracks the empty folder. Ran `npm run dev` and the user confirmed the placeholder window (fonts and tokens) looks right; dev server stopped by exact PID. `/review` (Plan subagent) found no problems: layout matches docs, nothing ignores or packages the `.gitkeep` files.
+**Decisions:** No `StoreProvider` interface yet; it needs a real shape from Steam detection in Milestone 1. Delete each `.gitkeep` once a real file lands in its folder.
+**Next:** step 6 (installer workflow).
+**Blocked by:** nothing. Open items unchanged: remove the temporary "Tokens loaded" chip once real UI exists; decide `img-src` for remote cover art; replace placeholder icons; verify the packaged asar has no `src/**` on the first CI build.
 
 ## 2026-09-20 (Milestone 0: Tailwind + design tokens)
 **Built:** Tailwind v4 (`tailwindcss`, `@tailwindcss/vite`) wired into the renderer in `electron.vite.config.ts`. `src/renderer/src/assets/main.css` now holds the design tokens from docs/design/direction.md in an `@theme static` block (10 colors, `--font-display`/`--font-body`, 8px `--spacing`, `--radius-card` 12px, `--radius-control` 8px), plus base styles. `App.tsx` restyled with token utilities. Fonts via `@fontsource-variable/sora` and `@fontsource-variable/manrope`.
@@ -29,9 +35,3 @@ Milestone 0 step 5: create the remaining `src/main` folders (ipc, storage, libra
 **Decisions:** appId `io.github.diego-bonora.unifiedgamelauncher` (never change after first release; must match `APP_ID`). Installer is built by GitHub Actions on a Windows runner (the dev machine is macOS). `userData` is pinned to `APP_NAME` rather than derived from package name so a rename can't orphan tokens; dev uses a separate `(dev)` folder. Demo UI and mac/linux config removed. `electron-updater` waits for Milestone 7. The `extract-zip` audit warning (dev-time only) is left unfixed because the fix is breaking.
 **Next:** commit, then Tailwind + design tokens (step 3).
 **Blocked by:** nothing. Open items for later: replace the placeholder icons in `build/` and `resources/`; decide how remote cover art passes the CSP (`img-src`) before the library UI; verify the packaged asar has no `src/**` on the first CI build.
-
-## 2026-09-20
-**Built:** docs only, no code: docs/spec.md, docs/features/auth-roles.md, docs/design/direction.md, docs/brand.md (new), CLAUDE.md, this file.
-**Decisions:** v1 = Steam + Epic only (GOG/Ubisoft/Battle.net/EA in v2). Auto-updates IN v1 (electron-updater, Milestone 7; works unsigned). Windows only. Unsigned installer for v1; signing (SignPath free OSS program or Azure Trusted Signing) revisited before the M7 release. Epic built in two stages: installed detection + launch first, owned library separate and allowed to fail. electron-vite + npm + Vitest + ESLint + Prettier + Tailwind. Dark only, violet accent `#8B5CF6`, Sora + Manrope (bundled locally), cover grid + left sidebar. Working title UnifiedGameLauncher kept in one `APP_NAME` constant. Framework lives in `app/` with `src/shared`, `src/main/{ipc,security,storage,library,stores/{steam,epic}}`, `src/preload`, `src/renderer/src`.
-**Next:** Milestone 0 scaffold.
-**Blocked by:** nothing.
