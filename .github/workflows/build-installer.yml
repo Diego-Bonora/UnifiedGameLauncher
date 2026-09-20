@@ -1,0 +1,57 @@
+# Builds the Windows installer on a Windows runner (the dev machine is macOS,
+# and NSIS installers are built most reliably on Windows itself).
+# Build-only for now: it uploads the installer as a workflow artifact and does
+# NOT publish a GitHub Release. Publishing is added with Milestone 7.
+name: Build installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: app/.nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # `npm ci` installs exactly what package-lock.json says, so CI matches local.
+      - run: npm ci
+
+      - run: npm run lint
+      - run: npm test
+
+      # Runs typecheck, the Vite build, then electron-builder (NSIS, no publish).
+      - run: npm run dist
+
+      # Guards the open item from progress.md: source files must not ship in the
+      # packaged app. Only a root-level /src (or \src on Windows) counts, since
+      # dependencies may legitimately contain their own src folders.
+      - name: Check the packaged app has no source files
+        run: |
+          npx --yes @electron/asar list dist/win-unpacked/resources/app.asar > asar-files.txt
+          if grep -Eq '^[/\\]src([/\\]|$)' asar-files.txt; then
+            echo "src/** was packaged into app.asar:"
+            grep -E '^[/\\]src([/\\]|$)' asar-files.txt
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: app/dist/*-setup.exe
+          if-no-files-found: error
