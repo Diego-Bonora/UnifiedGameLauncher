@@ -4,6 +4,7 @@ import {
   steamApiKeyPayloadSchema,
   type SteamConnectionStatus
 } from '@shared/ipc/steam'
+import { downloadMissingCovers, withLocalCoverUrls } from '../library/cover-cache'
 import {
   clearCachedSteamLibrary,
   getCachedSteamLibrary,
@@ -103,7 +104,11 @@ export function registerSteamAuthIpc(): void {
       // full disk or locked file must not turn it into an error. The cache
       // module has already logged the failure.
       await setCachedSteamLibrary(connection.steamId64, games).catch(() => undefined)
-      return games
+      // Not awaited: the grid must not wait on ~100 image downloads. They
+      // land on disk for the NEXT load; this one uses whatever is already
+      // there and the remote URL for the rest.
+      downloadMissingCovers(games).catch(() => undefined)
+      return await withLocalCoverUrls(games)
     } catch (err) {
       // A friendly, generic message — never the raw fetch/HTTP detail. The
       // saved connection and API key are left untouched: a failed fetch
@@ -118,6 +123,8 @@ export function registerSteamAuthIpc(): void {
     const connection = await getSteamConnection()
     if (connection.status !== 'connected') return null
     const games = await getCachedSteamLibrary(connection.steamId64)
-    return games === null ? null : { steamId64: connection.steamId64, games }
+    return games === null
+      ? null
+      : { steamId64: connection.steamId64, games: await withLocalCoverUrls(games) }
   })
 }

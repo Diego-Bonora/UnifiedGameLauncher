@@ -9,8 +9,11 @@ import {
 const STEAM_ID = '76561197960287930'
 const OTHER_STEAM_ID = '76561197960287931'
 
+const COVER_URL =
+  'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/10/library_capsule.jpg'
+
 const GAMES = [
-  { appId: '10', title: 'Counter-Strike', coverUrl: 'https://example.test/10.jpg' },
+  { appId: '10', title: 'Counter-Strike', coverUrl: COVER_URL },
   { appId: '20', title: 'Team Fortress Classic', coverUrl: null }
 ]
 
@@ -83,6 +86,28 @@ describe('library-cache', () => {
   it('treats a pre-version entry as no cache', async () => {
     const deps = fakeDeps(
       JSON.stringify({ steam: { steamId64: STEAM_ID, fetchedAt: 1, games: GAMES } })
+    )
+    expect(await getCachedSteamLibrary(STEAM_ID, deps)).toBeNull()
+  })
+
+  it.each([
+    ['another host', 'https://evil.test/store_item_assets/x.jpg'],
+    [
+      'a look-alike host',
+      'https://shared.akamai.steamstatic.com.evil.test/store_item_assets/x.jpg'
+    ],
+    ['a data: URI', 'data:image/png;base64,AAAA'],
+    ['a plain http URL', 'http://shared.akamai.steamstatic.com/store_item_assets/x.jpg']
+  ])('rejects a cache whose coverUrl points at %s', async (_label, coverUrl) => {
+    const deps = fakeDeps(
+      JSON.stringify({
+        steam: {
+          version: 1,
+          steamId64: STEAM_ID,
+          fetchedAt: 1,
+          games: [{ appId: '10', title: 'Counter-Strike', coverUrl }]
+        }
+      })
     )
     expect(await getCachedSteamLibrary(STEAM_ID, deps)).toBeNull()
   })

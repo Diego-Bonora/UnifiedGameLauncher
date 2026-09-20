@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import { z } from 'zod'
 import type { SteamOwnedGame } from '@shared/ipc/steam-channels'
+import { isSteamCoverAssetUrl } from '../stores/steam/library-cover-art'
 
 // Same injectable-deps shape as connection-store.ts, and for the same reason:
 // the real path needs app.getPath, which throws under Vitest, so it is only
@@ -32,7 +33,10 @@ const realDeps: LibraryCacheDeps = {
 const steamOwnedGameSchema = z.object({
   appId: z.string().regex(/^\d+$/),
   title: z.string().min(1),
-  coverUrl: z.string().nullable()
+  // Same allow-list the live path builds under: a cache file edited to point
+  // at some other URL fails validation and reads as "no cache" instead of
+  // reaching an <img src>.
+  coverUrl: z.string().refine(isSteamCoverAssetUrl).nullable()
 }) satisfies z.ZodType<SteamOwnedGame>
 
 // Bump when SteamOwnedGame changes shape. An entry with any other version

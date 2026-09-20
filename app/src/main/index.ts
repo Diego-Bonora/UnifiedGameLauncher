@@ -5,12 +5,16 @@ import { APP_ID, APP_NAME } from '@shared/app-info'
 import { isAllowedExternalUrl, isSameOrigin } from './security/external-url'
 import { registerSteamIpc } from './ipc/steam'
 import { registerSteamAuthIpc } from './ipc/steam-auth'
+import { registerCoverProtocol, registerCoverScheme } from './library/cover-protocol'
 
 // Pin the data folder to %APPDATA%\<APP_NAME> so it can't drift if the
 // package name or installer productName ever changes. Must run before anything
 // reads userData. Dev runs get their own folder so `npm run dev` never shares
 // data (or the single-instance lock) with an installed copy.
 app.setPath('userData', join(app.getPath('appData'), is.dev ? `${APP_NAME} (dev)` : APP_NAME))
+
+// Electron only allows declaring a custom scheme before the app is ready.
+registerCoverScheme()
 
 let mainWindow: BrowserWindow | null = null
 
@@ -94,6 +98,7 @@ if (!app.requestSingleInstanceLock()) {
 
     registerSteamIpc()
     registerSteamAuthIpc()
+    registerCoverProtocol()
 
     // Default open or close DevTools by F12 in development
     // and ignore CommandOrControl + R in production.

@@ -29,6 +29,12 @@ vi.mock('../storage/secret-store', () => ({
   setSecret: vi.fn(),
   clearSecret: vi.fn()
 }))
+vi.mock('../library/cover-cache', () => ({
+  downloadMissingCovers: vi.fn(),
+  // Identity by default (set in beforeEach): these tests are about what the
+  // handlers hand to the cover cache, not about the cache itself.
+  withLocalCoverUrls: vi.fn()
+}))
 vi.mock('../library/library-cache', () => ({
   getCachedSteamLibrary: vi.fn(),
   setCachedSteamLibrary: vi.fn(),
@@ -40,6 +46,7 @@ import { registerSteamAuthIpc } from './steam-auth'
 import { getOwnedSteamGames } from '../stores/steam/owned-games'
 import { clearSteamConnection, getSteamConnection } from '../storage/connection-store'
 import { clearSecret, getSecret } from '../storage/secret-store'
+import { downloadMissingCovers, withLocalCoverUrls } from '../library/cover-cache'
 import {
   clearCachedSteamLibrary,
   getCachedSteamLibrary,
@@ -58,6 +65,8 @@ function invoke(channel: string): Promise<unknown> {
 beforeEach(() => {
   vi.resetAllMocks()
   vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  vi.mocked(withLocalCoverUrls).mockImplementation(async (games) => games)
+  vi.mocked(downloadMissingCovers).mockResolvedValue(undefined)
   handlers.clear()
   registerSteamAuthIpc()
 })
@@ -75,6 +84,27 @@ describe('steam:getOwnedGames', () => {
 
     expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(GAMES)
     expect(setCachedSteamLibrary).toHaveBeenCalledWith(STEAM_ID, GAMES)
+  })
+
+  it('starts cover downloads and returns local cover URLs where they exist', async () => {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
+    vi.mocked(setCachedSteamLibrary).mockResolvedValue(undefined)
+    const local = [{ appId: '10', title: 'Counter-Strike', coverUrl: 'app-cover://covers/10' }]
+    vi.mocked(withLocalCoverUrls).mockResolvedValue(local)
+
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(local)
+    expect(downloadMissingCovers).toHaveBeenCalledWith(GAMES)
+  })
+
+  it('does not wait for cover downloads before returning the library', async () => {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
+    vi.mocked(setCachedSteamLibrary).mockResolvedValue(undefined)
+    // Never settles: if the handler awaited it, this test would time out.
+    vi.mocked(downloadMissingCovers).mockReturnValue(new Promise(() => undefined))
+
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(GAMES)
   })
 
   it('still returns the live result when saving the cache fails', async () => {
@@ -123,6 +153,18 @@ describe('steam:getCachedLibrary', () => {
       games: GAMES
     })
     expect(getCachedSteamLibrary).toHaveBeenCalledWith(STEAM_ID)
+  })
+
+  it('returns local cover URLs for covers already on disk', async () => {
+    connectedWithKey()
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue(GAMES)
+    const local = [{ appId: '10', title: 'Counter-Strike', coverUrl: 'app-cover://covers/10' }]
+    vi.mocked(withLocalCoverUrls).mockResolvedValue(local)
+
+    expect(await invoke(STEAM_CHANNELS.getCachedLibrary)).toEqual({
+      steamId64: STEAM_ID,
+      games: local
+    })
   })
 })
 

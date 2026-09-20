@@ -6,10 +6,12 @@
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
          img-src allows Steam's cover-art CDN by exact host, not a wildcard —
          see main/stores/steam/library-cover-art.ts for the one place that URL is built.
+         app-cover: is the app's own read-only scheme for covers cached on disk
+         (main/library/cover-protocol.ts); it only ever serves files from the covers folder.
          'unsafe-inline' styles are kept for Vite dev; revisit for production. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://shared.akamai.steamstatic.com; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: app-cover: https://shared.akamai.steamstatic.com; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'"
     />
   </head>
 

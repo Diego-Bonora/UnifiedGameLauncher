@@ -67,6 +67,15 @@ const storeItemsResponseSchema = z.object({
 
 const ASSET_HOST = 'https://shared.akamai.steamstatic.com/store_item_assets/'
 
+// The one place that says which URLs count as Steam cover art. Used both
+// when building URLs here and when trusting URLs read back from disk (the
+// library cache) or about to be downloaded (the cover cache), so the three
+// can't drift apart. The prefix ends in "/" after the host, so a string like
+// "https://shared.akamai.steamstatic.com.evil.test/..." can't match.
+export function isSteamCoverAssetUrl(url: string): boolean {
+  return url.startsWith(ASSET_HOST)
+}
+
 function buildCoverUrl(assetUrlFormat: string, libraryCapsuleFilename: string): string {
   return ASSET_HOST + assetUrlFormat.replace('${FILENAME}', libraryCapsuleFilename)
 }
@@ -81,7 +90,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 // workers, each pulling the next task off the shared queue as it finishes,
 // rather than batching-and-awaiting in fixed-size groups (which would leave
 // a worker idle if one task in a group is slower than the others).
-async function runWithConcurrencyLimit(
+export async function runWithConcurrencyLimit(
   tasks: Array<() => Promise<void>>,
   limit: number
 ): Promise<void> {
