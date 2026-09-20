@@ -6,7 +6,8 @@ export type {
   SteamConnectionStatus,
   SteamInstalledGame,
   SteamLaunchRequest,
-  SteamOwnedGame
+  SteamOwnedGame,
+  SteamCachedLibrary
 } from './steam-channels'
 
 // Only main imports this file (it needs zod for validation). Preload and the

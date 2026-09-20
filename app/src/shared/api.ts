@@ -1,4 +1,5 @@
 import type {
+  SteamCachedLibrary,
   SteamConnectionStatus,
   SteamInstalledGame,
   SteamOwnedGame
@@ -19,6 +20,6 @@ export interface RendererApi {
     clearApiKey: () => Promise<SteamConnectionStatus>
     getOwnedGames: () => Promise<SteamOwnedGame[]>
     // null when nothing is saved for the connected account yet.
-    getCachedLibrary: () => Promise<SteamOwnedGame[] | null>
+    getCachedLibrary: () => Promise<SteamCachedLibrary | null>
   }
 }

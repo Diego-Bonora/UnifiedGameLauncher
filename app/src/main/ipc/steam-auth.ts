@@ -4,7 +4,11 @@ import {
   steamApiKeyPayloadSchema,
   type SteamConnectionStatus
 } from '@shared/ipc/steam'
-import { getCachedSteamLibrary, setCachedSteamLibrary } from '../library/library-cache'
+import {
+  clearCachedSteamLibrary,
+  getCachedSteamLibrary,
+  setCachedSteamLibrary
+} from '../library/library-cache'
 import { cancelSteamSignIn, openSteamSignInInBrowser } from '../stores/steam/openid'
 import { getOwnedSteamGames } from '../stores/steam/owned-games'
 import {
@@ -65,6 +69,9 @@ export function registerSteamAuthIpc(): void {
 
   ipcMain.handle(STEAM_CHANNELS.disconnect, async () => {
     await clearSteamConnection()
+    // Not swallowed: if the saved library can't be removed, the caller
+    // should hear about it rather than assume it is gone.
+    await clearCachedSteamLibrary()
     return buildConnectionStatus()
   })
 
@@ -110,6 +117,7 @@ export function registerSteamAuthIpc(): void {
   ipcMain.handle(STEAM_CHANNELS.getCachedLibrary, async () => {
     const connection = await getSteamConnection()
     if (connection.status !== 'connected') return null
-    return getCachedSteamLibrary(connection.steamId64)
+    const games = await getCachedSteamLibrary(connection.steamId64)
+    return games === null ? null : { steamId64: connection.steamId64, games }
   })
 }

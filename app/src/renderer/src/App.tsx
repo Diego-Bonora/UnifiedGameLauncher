@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { APP_NAME } from '@shared/app-info'
 import type {
+  SteamCachedLibrary,
   SteamConnectionStatus,
   SteamInstalledGame,
   SteamOwnedGame
@@ -15,8 +16,13 @@ type LoadState = 'loading' | 'loaded'
 // null" setState call needed in the effect below, which would otherwise run
 // synchronously in the effect body and trip react-hooks/set-state-in-effect
 // (see the getInstalledGames effect above for the same reasoning).
-type OwnedGamesResult =
-  { steamId64: string; games: SteamOwnedGame[] } | { steamId64: string; error: string }
+// `games` and `error` are independent: a failed refresh keeps the last good
+// list for that account (games set, error set) instead of discarding it.
+interface OwnedGamesResult {
+  steamId64: string
+  games: SteamOwnedGame[] | null
+  error: string | null
+}
 
 function App(): React.JSX.Element {
   const [state, setState] = useState<LoadState>('loading')
@@ -29,10 +35,7 @@ function App(): React.JSX.Element {
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [savingApiKey, setSavingApiKey] = useState(false)
   const [ownedGamesResult, setOwnedGamesResult] = useState<OwnedGamesResult | null>(null)
-  const [cachedLibrary, setCachedLibrary] = useState<{
-    steamId64: string
-    games: SteamOwnedGame[]
-  } | null>(null)
+  const [cachedLibrary, setCachedLibrary] = useState<SteamCachedLibrary | null>(null)
 
   const handleLaunch = (appId: string): void => {
     setLaunchError(null)
@@ -124,15 +127,18 @@ function App(): React.JSX.Element {
     window.api.steam
       .getOwnedGames()
       .then((games) => {
-        if (!ignore) setOwnedGamesResult({ steamId64, games })
+        if (!ignore) setOwnedGamesResult({ steamId64, games, error: null })
       })
       .catch((err: unknown) => {
-        if (!ignore) {
-          setOwnedGamesResult({
-            steamId64,
-            error: err instanceof Error ? err.message : 'Could not load your Steam library.'
-          })
-        }
+        if (ignore) return
+        const error = err instanceof Error ? err.message : 'Could not load your Steam library.'
+        // Keep the last good list, but only if it belongs to THIS account —
+        // never carry another account's games across a reconnect.
+        setOwnedGamesResult((previous) => ({
+          steamId64,
+          games: previous?.steamId64 === steamId64 ? previous.games : null,
+          error
+        }))
       })
     return () => {
       ignore = true
@@ -143,12 +149,12 @@ function App(): React.JSX.Element {
   // still running. Same steamId64 tagging and `ignore` guard as that effect.
   useEffect(() => {
     if (connection?.status !== 'connected' || !connection.hasApiKey) return
-    const steamId64 = connection.steamId64
     let ignore = false
     window.api.steam
       .getCachedLibrary()
-      .then((games) => {
-        if (!ignore && games !== null) setCachedLibrary({ steamId64, games })
+      .then((cached) => {
+        // The account tag comes from main, not from this effect's closure.
+        if (!ignore && cached !== null) setCachedLibrary(cached)
       })
       .catch(() => {
         // No saved copy is not an error; the live fetch is still coming.
@@ -167,20 +173,14 @@ function App(): React.JSX.Element {
       ? ownedGamesResult
       : null
   const showOwnedGames = connection?.status === 'connected' && connection.hasApiKey === true
-  const ownedGamesError =
-    ownedGamesForCurrentAccount !== null && 'error' in ownedGamesForCurrentAccount
-      ? ownedGamesForCurrentAccount.error
-      : null
+  const ownedGamesError = ownedGamesForCurrentAccount?.error ?? null
   const cachedGames =
     cachedLibrary !== null && cachedLibrary.steamId64 === currentSteamId64
       ? cachedLibrary.games
       : null
   // Live result wins; the saved copy fills the gap until it arrives, and
   // stays on screen if the live fetch fails.
-  const ownedGames =
-    ownedGamesForCurrentAccount !== null && 'games' in ownedGamesForCurrentAccount
-      ? ownedGamesForCurrentAccount.games
-      : cachedGames
+  const ownedGames = ownedGamesForCurrentAccount?.games ?? cachedGames
   const loadingOwnedGames = showOwnedGames && ownedGames === null && ownedGamesError === null
 
   return (
@@ -258,6 +258,9 @@ function App(): React.JSX.Element {
         <section className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">Your Steam Library</h2>
           {ownedGamesError !== null && <p className="text-danger">{ownedGamesError}</p>}
+          {ownedGamesError !== null && ownedGames !== null && (
+            <p className="text-sm text-muted">Showing your last saved library.</p>
+          )}
           {loadingOwnedGames && (
             <div
               className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4"

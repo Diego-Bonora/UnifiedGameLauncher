@@ -30,6 +30,15 @@ export interface SteamOwnedGame {
   coverUrl: string | null
 }
 
+// The steamId64 is set by main from the same connection read that picked the
+// cache entry, so the renderer never has to guess which account a list
+// belongs to (it could otherwise mislabel it if the account changed while
+// the request was in flight).
+export interface SteamCachedLibrary {
+  steamId64: string
+  games: SteamOwnedGame[]
+}
+
 export interface SteamLaunchRequest {
   appId: string
 }

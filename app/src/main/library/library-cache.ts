@@ -35,9 +35,15 @@ const steamOwnedGameSchema = z.object({
   coverUrl: z.string().nullable()
 }) satisfies z.ZodType<SteamOwnedGame>
 
+// Bump when SteamOwnedGame changes shape. An entry with any other version
+// fails validation and reads as "no cache", so the next live fetch simply
+// rewrites it — no migration needed for data that is cheap to re-fetch.
+const CACHE_VERSION = 1
+
 // Tagged with the account it was fetched for: a cache written for one Steam
 // account must never be shown after signing in as another.
 const steamCacheEntrySchema = z.object({
+  version: z.literal(CACHE_VERSION),
   steamId64: z.string().regex(/^\d{17}$/),
   fetchedAt: z.number(),
   games: z.array(steamOwnedGameSchema)
@@ -59,9 +65,9 @@ async function readRawCacheFile(deps: LibraryCacheDeps): Promise<Record<string, 
   }
 }
 
-// Returns null (never throws) for: no cache, a corrupt cache, or a cache that
-// belongs to a different account. The caller treats all three as "no saved
-// library yet".
+// Returns null (never throws) for: no cache, a corrupt or old-version cache,
+// or a cache that belongs to a different account. The caller treats all of
+// them as "no saved library yet".
 export async function getCachedSteamLibrary(
   steamId64: string,
   deps: LibraryCacheDeps = realDeps
@@ -96,12 +102,30 @@ export async function setCachedSteamLibrary(
 ): Promise<void> {
   await enqueueWrite(async () => {
     const raw = await readRawCacheFile(deps)
-    const entry: SteamCacheEntry = { steamId64, fetchedAt: now(), games }
+    const entry: SteamCacheEntry = { version: CACHE_VERSION, steamId64, fetchedAt: now(), games }
     raw['steam'] = entry
     try {
       await deps.writeFile(JSON.stringify(raw))
     } catch (err) {
       console.warn('[steam] could not save the library cache:', err)
+      throw err
+    }
+  })
+}
+
+// Removes only Steam's entry, leaving any other store's cache alone. Used on
+// disconnect so a full game list doesn't stay on disk for an account the user
+// has signed out of (matches the privacy policy's "disconnect deletes saved
+// data").
+export async function clearCachedSteamLibrary(deps: LibraryCacheDeps = realDeps): Promise<void> {
+  await enqueueWrite(async () => {
+    const raw = await readRawCacheFile(deps)
+    if (!('steam' in raw)) return
+    delete raw['steam']
+    try {
+      await deps.writeFile(JSON.stringify(raw))
+    } catch (err) {
+      console.warn('[steam] could not clear the library cache:', err)
       throw err
     }
   })

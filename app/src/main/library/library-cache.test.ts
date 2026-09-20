@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clearCachedSteamLibrary,
   getCachedSteamLibrary,
   setCachedSteamLibrary,
   type LibraryCacheDeps
@@ -70,6 +71,44 @@ describe('library-cache', () => {
     const deps = fakeDeps(JSON.stringify({ epic: { foo: 'bar' } }))
     await setCachedSteamLibrary(STEAM_ID, GAMES, deps)
     expect(JSON.parse(deps.content()!).epic).toEqual({ foo: 'bar' })
+  })
+
+  it('treats an entry from a different cache version as no cache', async () => {
+    const deps = fakeDeps(
+      JSON.stringify({ steam: { version: 999, steamId64: STEAM_ID, fetchedAt: 1, games: GAMES } })
+    )
+    expect(await getCachedSteamLibrary(STEAM_ID, deps)).toBeNull()
+  })
+
+  it('treats a pre-version entry as no cache', async () => {
+    const deps = fakeDeps(
+      JSON.stringify({ steam: { steamId64: STEAM_ID, fetchedAt: 1, games: GAMES } })
+    )
+    expect(await getCachedSteamLibrary(STEAM_ID, deps)).toBeNull()
+  })
+
+  it('clears only the steam entry', async () => {
+    const deps = fakeDeps(JSON.stringify({ epic: { foo: 'bar' } }))
+    await setCachedSteamLibrary(STEAM_ID, GAMES, deps)
+
+    await clearCachedSteamLibrary(deps)
+
+    expect(await getCachedSteamLibrary(STEAM_ID, deps)).toBeNull()
+    expect(JSON.parse(deps.content()!)).toEqual({ epic: { foo: 'bar' } })
+  })
+
+  it('clearing with nothing cached does not write', async () => {
+    let writes = 0
+    const deps: LibraryCacheDeps = {
+      readFile: async () => {
+        throw new Error('ENOENT')
+      },
+      writeFile: async () => {
+        writes++
+      }
+    }
+    await clearCachedSteamLibrary(deps)
+    expect(writes).toBe(0)
   })
 
   it('propagates a write failure and keeps the queue usable afterwards', async () => {
