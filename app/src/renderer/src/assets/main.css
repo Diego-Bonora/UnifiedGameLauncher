@@ -1,0 +1,15 @@
+/* Placeholder until Tailwind and the design tokens land (Milestone 0, step 3). */
+body {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #0b0b0f;
+  color: #ededf2;
+  font-family: system-ui, sans-serif;
+}
+
+main {
+  text-align: center;
+}

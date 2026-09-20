@@ -56,3 +56,4 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 
 ## Gotchas
 <!-- Format: - [date] [what went wrong and the rule going forward] -->
+- [2026-09-20] Cleaned up a test run with `pkill -f "Electron"` and hit VS Code's helper process. Stop processes by exact PID only.
