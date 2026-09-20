@@ -3,15 +3,23 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestone 0 (setup) and Milestone 1 (Steam installed games: detect + launch via `steam://`, no login) are both done and verified end-to-end on Windows. Milestone 1 was committed (`c92bd09`), pushed, built green by the "Build installer" workflow (run `35518208428`, 2m8s), installed on the Windows PC, and confirmed fully working: detected Steam games listed by title with a Play button and nothing else (cover art is Milestone 2), and clicking Play actually launches the game through Steam.
+Milestone 0 and 1 are done and verified on Windows. Milestone 2 Step 1 (Steam OpenID sign-in) is built, reviewed twice, and verified working in the macOS dev app. Not yet committed or tested on the Windows installer.
 
 ## In Progress
-Nothing active.
+Milestone 2 Step 1 is done. Steps 2–4 (API key entry, owned-games fetch, cover art) are not started.
 
 ## Next Up
-Milestone 2: Steam sign-in (OpenID) + user-supplied Steam Web API key for the owned library, plus cover art.
+Milestone 2 Step 2: Steam Web API key entry, persisted via `safeStorage` in a new `secret-store.ts`.
 
 ---
+
+## 2026-09-20 (Milestone 2, Step 1: Steam OpenID sign-in)
+**Built:** `app/src/main/stores/steam/openid.ts` (OpenID 2.0 `checkid_setup`/`check_authentication` flow — see Decisions), `app/src/main/storage/connection-store.ts` (plain-JSON `connections.json`, read-merge-write behind a write queue, `SteamConnection` as a discriminated union), `app/src/main/ipc/steam-auth.ts` (`signIn`/`cancelSignIn`/`disconnect`/`getConnectionStatus` handlers). Extended `shared/ipc/steam-channels.ts`/`steam.ts`, `preload/index.ts`, `shared/api.ts`. `App.tsx` gained a "Connect Steam"/"Reconnect Steam" button, a "waiting for your browser" state with Cancel, and shows the connected SteamID64. 38 Vitest tests total (11 in `openid.test.ts`, including a real loopback-server integration test for the original race condition).
+**Decisions:** Steam's login page opens in the user's **system browser** (`shell.openExternal`), not an embedded `BrowserWindow` — the embedded approach was tried first and got hard-blocked by Steam's Akamai WAF (see docs/lessons.md); a real loopback HTTP server on `127.0.0.1` (ephemeral port) catches the callback instead, like `gh auth login`. `electron-store` was **not** added as a dependency; `connections.json` is hand-rolled plain JSON with the same injectable-deps test pattern as M1, since it's not a secret. `connections.json` is a shared multi-store file (`{steam: ..., epic: ...}` eventually) so a read-merge-write (behind a write queue) was built in from the start rather than a plain overwrite. Cover art stays live-from-CDN, no disk cache, confirmed with the user (Milestone 3's job). UI stays minimal — no sidebar shell — until Milestone 6.
+**Fixed (two `/review` passes):** Round 1 found and fixed a real race condition (a cancelled flow's delayed verification could clobber a newer flow's state, hanging it and leaking its HTTP server — fixed with a per-flow-local `settled` flag plus an identity check on the shared `pending` slot), a missing anti-CSRF binding on the loopback callback (fixed with a random per-flow token in the callback path), a redundant zod re-validation of internally-built data (removed), and no feedback/logging on failure paths (added a `failed` result variant distinct from `cancelled`, plus `console.warn` on every failure). Round 2 confirmed all of those hold and found two smaller follow-ups: a concurrent-writer race in `connection-store.ts` (fixed with a write queue) and unlogged write errors (fixed). The race-condition fix was verified live: temporarily reverted to the original buggy guard, confirmed the new regression test times out and fails, then restored the fix and confirmed it passes — same method M1 used to verify `check-preload-deps.mjs`.
+**Verified:** Manually tested twice in `npm run dev` on macOS (real Steam login both times, correct SteamID64 shown, cancel-and-reconnect works). Not yet tested on the Windows installer build — that's still pending along with the rest of Milestone 2.
+**Next:** Step 2 (Steam Web API key entry + `safeStorage`).
+**Blocked by:** nothing. Not yet committed — pending user review of the diff.
 
 ## 2026-09-20 (Milestone 1: Steam installed games)
 **Built:** `src/main/stores/store-provider.ts` (shared `StoreProvider` interface). `src/main/stores/steam/`: `vdf.ts` (Valve KeyValues parser), `app-manifest.ts`, `library-folders.ts`, `steam-registry.ts` (`reg query`-based `SteamPath` lookup), `steam-provider.ts` (composes the above with an injectable filesystem), `index.ts` — each with a `*.test.ts` beside it (20 tests total). `src/shared/ipc/steam-channels.ts` (zero-dependency channel names/types) and `steam.ts` (main-only zod schemas). `src/main/ipc/steam.ts` (the `getInstalledGames`/`launch` handlers). Preload/renderer wiring (`src/preload/index.ts`, `src/shared/api.ts`, `src/renderer/src/App.tsx` — a list UI with loading/empty/error states). New `app/scripts/check-preload-deps.mjs`, wired into `npm run build`, scans the built preload bundle for any npm `require`/`import` reaching it.
@@ -27,9 +35,3 @@ Milestone 2: Steam sign-in (OpenID) + user-supplied Steam Web API key for the ow
 **Decisions:** Artifact downloads from GitHub returned 404 in the browser on the PC until signed in to the right account; sign in first, or use `gh run download`. GitHub warns that `checkout@v4`, `setup-node@v4` and `upload-artifact@v4` use deprecated Node 20; not failing, bump later.
 **Next:** Milestone 1.
 **Blocked by:** nothing. Open items: remove the temporary "Tokens loaded" chip once real UI exists; decide `img-src` for remote cover art; replace placeholder icons; bump the Node 20 actions.
-
-## 2026-09-20 (Milestone 0: installer workflow)
-**Built:** `.github/workflows/build-installer.yml` (runs on manual dispatch or `v*` tags, `windows-latest`, in `app/`): `npm ci`, lint, tests, `npm run dist`, an asar check that fails if a root `/src` was packaged, then uploads `dist/*-setup.exe` as a workflow artifact. Added `.gitattributes` (`* text=auto eol=lf`).
-**Decisions:** Build-only, no GitHub Release is published until Milestone 7 (publishing is outward-facing). `permissions: contents: read`. LF everywhere because Windows runners check out CRLF by default and Prettier expects LF. Checked locally: `icon.ico` has a 256px image (electron-builder's minimum), lint and `prettier --check` are clean.
-**Next:** push, run the workflow, read the result. The NSIS build and asar check could not be tested on macOS.
-**Blocked by:** nothing. Open items: remove the temporary "Tokens loaded" chip once real UI exists; decide `img-src` for remote cover art; replace placeholder icons; the asar `src/**` check is now automated but unproven until the first CI run.

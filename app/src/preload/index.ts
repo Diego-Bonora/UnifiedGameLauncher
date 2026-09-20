@@ -7,7 +7,11 @@ import { STEAM_CHANNELS } from '@shared/ipc/steam-channels'
 const api: RendererApi = {
   steam: {
     getInstalledGames: () => ipcRenderer.invoke(STEAM_CHANNELS.getInstalledGames),
-    launch: (appId) => ipcRenderer.invoke(STEAM_CHANNELS.launch, { appId })
+    launch: (appId) => ipcRenderer.invoke(STEAM_CHANNELS.launch, { appId }),
+    signIn: () => ipcRenderer.invoke(STEAM_CHANNELS.signIn),
+    cancelSignIn: () => ipcRenderer.invoke(STEAM_CHANNELS.cancelSignIn),
+    disconnect: () => ipcRenderer.invoke(STEAM_CHANNELS.disconnect),
+    getConnectionStatus: () => ipcRenderer.invoke(STEAM_CHANNELS.getConnectionStatus)
   }
 }
 
