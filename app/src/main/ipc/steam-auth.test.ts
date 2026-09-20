@@ -30,7 +30,8 @@ vi.mock('../storage/secret-store', () => ({
   clearSecret: vi.fn()
 }))
 vi.mock('../library/cover-cache', () => ({
-  downloadMissingCovers: vi.fn(),
+  syncCovers: vi.fn(),
+  clearCovers: vi.fn(),
   // Identity by default (set in beforeEach): these tests are about what the
   // handlers hand to the cover cache, not about the cache itself.
   withLocalCoverUrls: vi.fn()
@@ -46,7 +47,7 @@ import { registerSteamAuthIpc } from './steam-auth'
 import { getOwnedSteamGames } from '../stores/steam/owned-games'
 import { clearSteamConnection, getSteamConnection } from '../storage/connection-store'
 import { clearSecret, getSecret } from '../storage/secret-store'
-import { downloadMissingCovers, withLocalCoverUrls } from '../library/cover-cache'
+import { clearCovers, syncCovers, withLocalCoverUrls } from '../library/cover-cache'
 import {
   clearCachedSteamLibrary,
   getCachedSteamLibrary,
@@ -66,7 +67,8 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   vi.mocked(withLocalCoverUrls).mockImplementation(async (games) => games)
-  vi.mocked(downloadMissingCovers).mockResolvedValue(undefined)
+  vi.mocked(syncCovers).mockResolvedValue(undefined)
+  vi.mocked(clearCovers).mockResolvedValue(undefined)
   handlers.clear()
   registerSteamAuthIpc()
 })
@@ -94,7 +96,7 @@ describe('steam:getOwnedGames', () => {
     vi.mocked(withLocalCoverUrls).mockResolvedValue(local)
 
     expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(local)
-    expect(downloadMissingCovers).toHaveBeenCalledWith(GAMES)
+    expect(syncCovers).toHaveBeenCalledWith(GAMES)
   })
 
   it('does not wait for cover downloads before returning the library', async () => {
@@ -102,7 +104,7 @@ describe('steam:getOwnedGames', () => {
     vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
     vi.mocked(setCachedSteamLibrary).mockResolvedValue(undefined)
     // Never settles: if the handler awaited it, this test would time out.
-    vi.mocked(downloadMissingCovers).mockReturnValue(new Promise(() => undefined))
+    vi.mocked(syncCovers).mockReturnValue(new Promise(() => undefined))
 
     expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(GAMES)
   })
@@ -115,7 +117,7 @@ describe('steam:getOwnedGames', () => {
     expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(GAMES)
   })
 
-  it('does not touch the cache, connection or API key when the fetch fails', async () => {
+  it('does not touch the cache, covers, connection or API key when the fetch fails', async () => {
     connectedWithKey()
     vi.mocked(getOwnedSteamGames).mockRejectedValue(new Error('network down'))
 
@@ -124,6 +126,8 @@ describe('steam:getOwnedGames', () => {
     )
     expect(setCachedSteamLibrary).not.toHaveBeenCalled()
     expect(clearCachedSteamLibrary).not.toHaveBeenCalled()
+    expect(clearCovers).not.toHaveBeenCalled()
+    expect(syncCovers).not.toHaveBeenCalled()
     expect(clearSteamConnection).not.toHaveBeenCalled()
     expect(clearSecret).not.toHaveBeenCalled()
   })
@@ -177,6 +181,25 @@ describe('steam:disconnect', () => {
 
     expect(clearSteamConnection).toHaveBeenCalledOnce()
     expect(clearCachedSteamLibrary).toHaveBeenCalledOnce()
+  })
+
+  it('clears the cached cover images too', async () => {
+    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
+    vi.mocked(getSecret).mockResolvedValue(null)
+
+    await invoke(STEAM_CHANNELS.disconnect)
+
+    expect(clearCovers).toHaveBeenCalledOnce()
+  })
+
+  it('reports a failure to remove the covers instead of pretending they are gone', async () => {
+    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
+    vi.mocked(getSecret).mockResolvedValue(null)
+    vi.mocked(clearCovers).mockRejectedValue(new Error('Could not remove all saved cover images.'))
+
+    await expect(invoke(STEAM_CHANNELS.disconnect)).rejects.toThrow(
+      'Could not remove all saved cover images.'
+    )
   })
 
   it('does not delete the saved API key', async () => {

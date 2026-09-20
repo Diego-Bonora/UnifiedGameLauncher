@@ -4,7 +4,7 @@ import {
   steamApiKeyPayloadSchema,
   type SteamConnectionStatus
 } from '@shared/ipc/steam'
-import { downloadMissingCovers, withLocalCoverUrls } from '../library/cover-cache'
+import { clearCovers, syncCovers, withLocalCoverUrls } from '../library/cover-cache'
 import {
   clearCachedSteamLibrary,
   getCachedSteamLibrary,
@@ -73,6 +73,7 @@ export function registerSteamAuthIpc(): void {
     // Not swallowed: if the saved library can't be removed, the caller
     // should hear about it rather than assume it is gone.
     await clearCachedSteamLibrary()
+    await clearCovers()
     return buildConnectionStatus()
   })
 
@@ -106,8 +107,8 @@ export function registerSteamAuthIpc(): void {
       await setCachedSteamLibrary(connection.steamId64, games).catch(() => undefined)
       // Not awaited: the grid must not wait on ~100 image downloads. They
       // land on disk for the NEXT load; this one uses whatever is already
-      // there and the remote URL for the rest.
-      downloadMissingCovers(games).catch(() => undefined)
+      // there and the remote URL for the rest. syncCovers never rejects.
+      void syncCovers(games)
       return await withLocalCoverUrls(games)
     } catch (err) {
       // A friendly, generic message — never the raw fetch/HTTP detail. The
