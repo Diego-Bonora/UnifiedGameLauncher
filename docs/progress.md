@@ -3,15 +3,21 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestone 0 is partly done. `app/` is scaffolded (electron-vite, React + TS), hardened to the project's Electron security rules, and styled with Tailwind v4 plus the design tokens and locally bundled Sora/Manrope fonts (committed: `988b742`, `92fe492`). The full `src/main` folder layout now exists (step 5, uncommitted). The placeholder window was checked visually and looks right. Typecheck passes; no installer has been built.
+Milestone 0 is nearly done. `app/` is scaffolded (electron-vite, React + TS), hardened to the project's Electron security rules, and styled with Tailwind v4 plus the design tokens and locally bundled Sora/Manrope fonts. The full `src/main` folder layout exists (committed: `8a59587`). A GitHub Actions workflow that builds the Windows installer is written and committed (`b498106`) but has never run. Lint, prettier and typecheck pass locally; no installer has been built yet.
 
 ## In Progress
-Nothing active. Milestone 0 steps 1 to 5 are done. Step 5 got a `/review` pass with no problems found.
+Nothing active. Milestone 0 step 6 is written but unverified: it needs a push to GitHub and a first run.
 
 ## Next Up
-Milestone 0 step 6: Windows installer built by a GitHub Actions workflow (the dev machine is macOS).
+Push the repo, run "Build installer" from the Actions tab, and fix whatever the Windows runner finds. Then Milestone 1 (Steam installed games).
 
 ---
+
+## 2026-09-20 (Milestone 0: installer workflow)
+**Built:** `.github/workflows/build-installer.yml` (runs on manual dispatch or `v*` tags, `windows-latest`, in `app/`): `npm ci`, lint, tests, `npm run dist`, an asar check that fails if a root `/src` was packaged, then uploads `dist/*-setup.exe` as a workflow artifact. Added `.gitattributes` (`* text=auto eol=lf`).
+**Decisions:** Build-only, no GitHub Release is published until Milestone 7 (publishing is outward-facing). `permissions: contents: read`. LF everywhere because Windows runners check out CRLF by default and Prettier expects LF. Checked locally: `icon.ico` has a 256px image (electron-builder's minimum), lint and `prettier --check` are clean.
+**Next:** push, run the workflow, read the result. The NSIS build and asar check could not be tested on macOS.
+**Blocked by:** nothing. Open items: remove the temporary "Tokens loaded" chip once real UI exists; decide `img-src` for remote cover art; replace placeholder icons; the asar `src/**` check is now automated but unproven until the first CI run.
 
 ## 2026-09-20 (Milestone 0: main folders + visual check)
 **Built:** `src/main/{ipc,storage,library,stores/steam,stores/epic}/`, each holding only a `.gitkeep` so git tracks the empty folder. Ran `npm run dev` and the user confirmed the placeholder window (fonts and tokens) looks right; dev server stopped by exact PID. `/review` (Plan subagent) found no problems: layout matches docs, nothing ignores or packages the `.gitkeep` files.
