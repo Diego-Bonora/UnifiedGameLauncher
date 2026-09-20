@@ -27,3 +27,12 @@ export const steamLaunchRequestSchema = z.object({
 // crosses a trust boundary to produce it — it's built in main from data
 // connection-store.ts already validates, plus a literal boolean. Re-parsing
 // it here would only be checking main's own code against itself.
+
+// Steam Web API keys are always exactly 32 hex characters. `.trim()` absorbs
+// the stray whitespace copy-pasting from Steam's own key page tends to add.
+export const steamApiKeyPayloadSchema = z.object({
+  apiKey: z
+    .string()
+    .trim()
+    .regex(/^[0-9a-fA-F]{32}$/)
+})

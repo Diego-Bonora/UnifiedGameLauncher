@@ -11,5 +11,7 @@ export interface RendererApi {
     cancelSignIn: () => Promise<void>
     disconnect: () => Promise<SteamConnectionStatus>
     getConnectionStatus: () => Promise<SteamConnectionStatus>
+    setApiKey: (apiKey: string) => Promise<SteamConnectionStatus>
+    clearApiKey: () => Promise<SteamConnectionStatus>
   }
 }

@@ -10,7 +10,9 @@ export const STEAM_CHANNELS = {
   signIn: 'steam:signIn',
   cancelSignIn: 'steam:cancelSignIn',
   disconnect: 'steam:disconnect',
-  getConnectionStatus: 'steam:getConnectionStatus'
+  getConnectionStatus: 'steam:getConnectionStatus',
+  setApiKey: 'steam:setApiKey',
+  clearApiKey: 'steam:clearApiKey'
 } as const
 
 export interface SteamInstalledGame {

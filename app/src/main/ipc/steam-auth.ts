@@ -1,21 +1,33 @@
 import { ipcMain } from 'electron'
-import { STEAM_CHANNELS, type SteamConnectionStatus } from '@shared/ipc/steam'
+import {
+  STEAM_CHANNELS,
+  steamApiKeyPayloadSchema,
+  type SteamConnectionStatus
+} from '@shared/ipc/steam'
 import { cancelSteamSignIn, openSteamSignInInBrowser } from '../stores/steam/openid'
 import {
   clearSteamConnection,
   getSteamConnection,
   setSteamConnection
 } from '../storage/connection-store'
+import { clearSecret, getSecret, setSecret } from '../storage/secret-store'
+
+// This app's only secret today; kept here (not in secret-store.ts, which
+// stays store-agnostic) since only this file's handlers ever read or write it.
+const STEAM_API_KEY_SECRET = 'steamApiKey'
 
 // A separate registration function (and file) from ipc/steam.ts: this one
-// pulls in the OpenID flow + connection storage, keeping that import graph
-// apart from the plain install-detection handlers.
+// pulls in the OpenID flow + connection/secret storage, keeping that import
+// graph apart from the plain install-detection handlers.
 async function buildConnectionStatus(): Promise<SteamConnectionStatus> {
-  const connection = await getSteamConnection()
+  const [connection, apiKey] = await Promise.all([
+    getSteamConnection(),
+    getSecret(STEAM_API_KEY_SECRET)
+  ])
   // Spread (not a hand-built object literal) preserves the discriminated
   // union: copying `status`/`steamId64` out separately would produce two
   // independent unions TS can no longer correlate with each other.
-  return { ...connection, hasApiKey: false }
+  return { ...connection, hasApiKey: apiKey !== null }
 }
 
 export function registerSteamAuthIpc(): void {
@@ -42,6 +54,23 @@ export function registerSteamAuthIpc(): void {
 
   ipcMain.handle(STEAM_CHANNELS.disconnect, async () => {
     await clearSteamConnection()
+    return buildConnectionStatus()
+  })
+
+  ipcMain.handle(STEAM_CHANNELS.setApiKey, async (_event, rawPayload: unknown) => {
+    const result = steamApiKeyPayloadSchema.safeParse(rawPayload)
+    if (!result.success) {
+      // A friendly, generic message — never the raw zod error.
+      throw new Error(
+        "That doesn't look like a Steam Web API key. It should be 32 letters and numbers."
+      )
+    }
+    await setSecret(STEAM_API_KEY_SECRET, result.data.apiKey)
+    return buildConnectionStatus()
+  })
+
+  ipcMain.handle(STEAM_CHANNELS.clearApiKey, async () => {
+    await clearSecret(STEAM_API_KEY_SECRET)
     return buildConnectionStatus()
   })
 }

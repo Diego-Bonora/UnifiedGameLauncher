@@ -11,7 +11,9 @@ const api: RendererApi = {
     signIn: () => ipcRenderer.invoke(STEAM_CHANNELS.signIn),
     cancelSignIn: () => ipcRenderer.invoke(STEAM_CHANNELS.cancelSignIn),
     disconnect: () => ipcRenderer.invoke(STEAM_CHANNELS.disconnect),
-    getConnectionStatus: () => ipcRenderer.invoke(STEAM_CHANNELS.getConnectionStatus)
+    getConnectionStatus: () => ipcRenderer.invoke(STEAM_CHANNELS.getConnectionStatus),
+    setApiKey: (apiKey) => ipcRenderer.invoke(STEAM_CHANNELS.setApiKey, { apiKey }),
+    clearApiKey: () => ipcRenderer.invoke(STEAM_CHANNELS.clearApiKey)
   }
 }
 
