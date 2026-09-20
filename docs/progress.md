@@ -3,15 +3,22 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestone 0 is nearly done. `app/` is scaffolded (electron-vite, React + TS), hardened to the project's Electron security rules, and styled with Tailwind v4 plus the design tokens and locally bundled Sora/Manrope fonts. The full `src/main` folder layout exists (committed: `8a59587`). A GitHub Actions workflow that builds the Windows installer is written and committed (`b498106`) but has never run. Lint, prettier and typecheck pass locally; no installer has been built yet.
+Milestone 0 (setup) is done. `app/` is scaffolded (electron-vite, React + TS), hardened to the project's Electron security rules, and styled with Tailwind v4 plus the design tokens and locally bundled Sora/Manrope fonts. The "Build installer" GitHub Actions workflow ran green (lint, tests, `npm run dist`, asar source check) and produced `UnifiedGameLauncher-0.1.0-setup.exe`, which was installed and tested by hand on a Windows PC. No real features exist yet.
 
 ## In Progress
-Nothing active. Milestone 0 step 6 is written but unverified: it needs a push to GitHub and a first run.
+Nothing active.
 
 ## Next Up
-Push the repo, run "Build installer" from the Actions tab, and fix whatever the Windows runner finds. Then Milestone 1 (Steam installed games).
+Milestone 1: Steam installed games (detect installed Steam games from local files and launch them via `steam://`, no login). Needs the first real `StoreProvider` interface and the first zod-validated IPC channels.
 
 ---
+
+## 2026-09-20 (Milestone 0: installer verified on Windows)
+**Built:** nothing new. Ran "Build installer" from the Actions tab (green, 2m13s; the asar check found no root `/src`). Installed the artifact on a Windows PC and checked it by hand.
+**Verified:** app opens with the right fonts and looks the same as `npm run dev` on the Mac; `%APPDATA%\UnifiedGameLauncher` (no "(dev)") is created; a second launch focuses the first window; uninstall removes the app and shortcut. Uninstall leaves `%APPDATA%\UnifiedGameLauncher` in place. That is electron-builder's default (`nsis.deleteAppDataOnUninstall: false`), it matches the privacy policy draft, and it is kept for v1.
+**Decisions:** Artifact downloads from GitHub returned 404 in the browser on the PC until signed in to the right account; sign in first, or use `gh run download`. GitHub warns that `checkout@v4`, `setup-node@v4` and `upload-artifact@v4` use deprecated Node 20; not failing, bump later.
+**Next:** Milestone 1.
+**Blocked by:** nothing. Open items: remove the temporary "Tokens loaded" chip once real UI exists; decide `img-src` for remote cover art; replace placeholder icons; bump the Node 20 actions.
 
 ## 2026-09-20 (Milestone 0: installer workflow)
 **Built:** `.github/workflows/build-installer.yml` (runs on manual dispatch or `v*` tags, `windows-latest`, in `app/`): `npm ci`, lint, tests, `npm run dist`, an asar check that fails if a root `/src` was packaged, then uploads `dist/*-setup.exe` as a workflow artifact. Added `.gitattributes` (`* text=auto eol=lf`).
