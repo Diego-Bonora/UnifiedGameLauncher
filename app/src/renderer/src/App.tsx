@@ -5,6 +5,7 @@ import type {
   SteamInstalledGame,
   SteamOwnedGame
 } from '@shared/ipc/steam-channels'
+import GameCoverArt from './GameCoverArt'
 
 type LoadState = 'loading' | 'loaded'
 
@@ -154,7 +155,7 @@ function App(): React.JSX.Element {
       : null
 
   return (
-    <main className="mx-auto flex h-full max-w-3xl flex-col gap-4 p-4">
+    <main className="mx-auto flex h-full max-w-6xl flex-col gap-4 p-4">
       <h1 className="text-3xl font-semibold">{APP_NAME}</h1>
 
       <section className="flex items-center justify-between rounded-card border border-border bg-surface px-4 py-3">
@@ -229,9 +230,12 @@ function App(): React.JSX.Element {
           <h2 className="text-xl font-semibold">Your Steam Library</h2>
           {ownedGamesError !== null && <p className="text-danger">{ownedGamesError}</p>}
           {loadingOwnedGames && (
-            <div className="flex flex-col gap-2" aria-busy="true">
-              {[0, 1].map((key) => (
-                <div key={key} className="h-14 animate-pulse rounded-card bg-surface-2" />
+            <div
+              className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4"
+              aria-busy="true"
+            >
+              {[0, 1, 2, 3, 4, 5].map((key) => (
+                <div key={key} className="aspect-[2/3] animate-pulse rounded-card bg-surface-2" />
               ))}
             </div>
           )}
@@ -242,13 +246,11 @@ function App(): React.JSX.Element {
             </p>
           )}
           {!loadingOwnedGames && ownedGames !== null && ownedGames.length > 0 && (
-            <ul className="flex flex-col gap-2">
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
               {ownedGames.map((game) => (
-                <li
-                  key={game.appId}
-                  className="rounded-card border border-border bg-surface px-4 py-3"
-                >
-                  {game.title}
+                <li key={game.appId} className="flex min-w-0 flex-col gap-2">
+                  <GameCoverArt coverUrl={game.coverUrl} />
+                  <span className="truncate text-sm text-muted">{game.title}</span>
                 </li>
               ))}
             </ul>

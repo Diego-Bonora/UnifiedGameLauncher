@@ -4,11 +4,12 @@
     <meta charset="UTF-8" />
     <title>%APP_NAME%</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
-         img-src will need widening (or a main-side cover cache) once cover art loads.
+         img-src allows Steam's cover-art CDN by exact host, not a wildcard —
+         see main/stores/steam/library-cover-art.ts for the one place that URL is built.
          'unsafe-inline' styles are kept for Vite dev; revisit for production. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://shared.akamai.steamstatic.com; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'"
     />
   </head>
 

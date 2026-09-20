@@ -40,4 +40,5 @@ export const steamApiKeyPayloadSchema = z.object({
 
 // SteamOwnedGame gets no schema here either, for the same reason as
 // SteamConnectionStatus above: stores/steam/owned-games.ts already validates
-// Steam's raw API response entry-by-entry before this shape ever exists.
+// Steam's raw API response entry-by-entry (and the cover-art lookup result)
+// before this shape ever exists.

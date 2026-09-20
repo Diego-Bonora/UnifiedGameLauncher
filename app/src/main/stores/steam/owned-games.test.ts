@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { getOwnedSteamGames, type OwnedGamesHttpDeps } from './owned-games'
+import type { LibraryCoverArtHttpDeps } from './library-cover-art'
 
 function fakeHttp(response: unknown): OwnedGamesHttpDeps {
   return { fetchOwnedGames: async () => response }
+}
+
+// Returns no cover art for anything — keeps tests focused on
+// getOwnedSteamGames's own logic without a real network call, and without
+// needing to model library-cover-art.ts's response shape in every test.
+const noCoverArt: LibraryCoverArtHttpDeps = {
+  fetchStoreItems: async () => ({ response: { store_items: [] } })
 }
 
 describe('getOwnedSteamGames', () => {
@@ -10,8 +18,8 @@ describe('getOwnedSteamGames', () => {
     const http = fakeHttp({
       response: { game_count: 1, games: [{ appid: 220, name: 'Half-Life 2' }] }
     })
-    expect(await getOwnedSteamGames('123', 'key', http)).toEqual([
-      { appId: '220', title: 'Half-Life 2' }
+    expect(await getOwnedSteamGames('123', 'key', http, noCoverArt)).toEqual([
+      { appId: '220', title: 'Half-Life 2', coverUrl: null }
     ])
   })
 
@@ -25,19 +33,21 @@ describe('getOwnedSteamGames', () => {
         ]
       }
     })
-    expect(await getOwnedSteamGames('123', 'key', http)).toEqual([
-      { appId: '220', title: 'Half-Life 2' }
+    expect(await getOwnedSteamGames('123', 'key', http, noCoverArt)).toEqual([
+      { appId: '220', title: 'Half-Life 2', coverUrl: null }
     ])
   })
 
   it('returns an empty array when the profile has no games', async () => {
     const http = fakeHttp({ response: {} })
-    expect(await getOwnedSteamGames('123', 'key', http)).toEqual([])
+    expect(await getOwnedSteamGames('123', 'key', http, noCoverArt)).toEqual([])
   })
 
   it('returns an empty array for an unexpected response shape', async () => {
-    expect(await getOwnedSteamGames('123', 'key', fakeHttp('not an object'))).toEqual([])
-    expect(await getOwnedSteamGames('123', 'key', fakeHttp(null))).toEqual([])
+    expect(await getOwnedSteamGames('123', 'key', fakeHttp('not an object'), noCoverArt)).toEqual(
+      []
+    )
+    expect(await getOwnedSteamGames('123', 'key', fakeHttp(null), noCoverArt)).toEqual([])
   })
 
   it('propagates an error from the http dependency instead of swallowing it', async () => {
@@ -46,7 +56,7 @@ describe('getOwnedSteamGames', () => {
         throw new Error('Steam API responded with 403')
       }
     }
-    await expect(getOwnedSteamGames('123', 'key', http)).rejects.toThrow(
+    await expect(getOwnedSteamGames('123', 'key', http, noCoverArt)).rejects.toThrow(
       'Steam API responded with 403'
     )
   })
@@ -59,7 +69,46 @@ describe('getOwnedSteamGames', () => {
         return { response: { games: [] } }
       }
     }
-    await getOwnedSteamGames('76561197960287930', 'abc123', http)
+    await getOwnedSteamGames('76561197960287930', 'abc123', http, noCoverArt)
     expect(received).toEqual(['76561197960287930', 'abc123'])
+  })
+
+  it('attaches the looked-up cover art URL to the matching game', async () => {
+    const http = fakeHttp({
+      response: { games: [{ appid: 220, name: 'Half-Life 2' }] }
+    })
+    const coverArtHttp: LibraryCoverArtHttpDeps = {
+      fetchStoreItems: async (appIds) => ({
+        response: {
+          store_items: appIds.map((appId) => ({
+            appid: Number(appId),
+            assets: {
+              asset_url_format: `steam/apps/${appId}/\${FILENAME}`,
+              library_capsule: 'library_600x900.jpg'
+            }
+          }))
+        }
+      })
+    }
+    expect(await getOwnedSteamGames('123', 'key', http, coverArtHttp)).toEqual([
+      {
+        appId: '220',
+        title: 'Half-Life 2',
+        coverUrl:
+          'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/220/library_600x900.jpg'
+      }
+    ])
+  })
+
+  it('does not look up cover art when there are no games', async () => {
+    let called = false
+    const coverArtHttp: LibraryCoverArtHttpDeps = {
+      fetchStoreItems: async () => {
+        called = true
+        return { response: { store_items: [] } }
+      }
+    }
+    await getOwnedSteamGames('123', 'key', fakeHttp({ response: { games: [] } }), coverArtHttp)
+    expect(called).toBe(false)
   })
 })

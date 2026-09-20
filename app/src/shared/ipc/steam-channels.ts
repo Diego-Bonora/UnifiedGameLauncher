@@ -25,6 +25,8 @@ export interface SteamInstalledGame {
 export interface SteamOwnedGame {
   appId: string
   title: string
+  // null when no cover art was found for this app.
+  coverUrl: string | null
 }
 
 export interface SteamLaunchRequest {

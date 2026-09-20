@@ -1,12 +1,15 @@
 import { z } from 'zod'
+import { getLibraryCoverArtUrls, type LibraryCoverArtHttpDeps } from './library-cover-art'
 
 // Only the fields used today. Steam's response carries a lot more
 // (playtime, icon/logo hashes, stats flags) that later milestones may pick
-// up — cover art (Step 4) builds its own CDN URL from appId rather than
-// trusting img_icon_url, so it isn't captured here yet.
+// up.
 export interface SteamOwnedGame {
   appId: string
   title: string
+  // null means no cover art was found for this app, not "not fetched yet" —
+  // by the time this leaves getOwnedSteamGames, the lookup has already run.
+  coverUrl: string | null
 }
 
 export interface OwnedGamesHttpDeps {
@@ -47,10 +50,15 @@ const steamApiGameSchema = z.object({
   name: z.string().min(1)
 })
 
+interface ParsedGame {
+  appId: string
+  title: string
+}
+
 // A malformed entry is dropped rather than failing the whole library — same
 // "one bad entry shouldn't take down every other game" rule as the
 // installed-games VDF parsing.
-function parseOwnedGamesResponse(raw: unknown): SteamOwnedGame[] {
+function parseOwnedGamesResponse(raw: unknown): ParsedGame[] {
   const games = (raw as { response?: { games?: unknown } } | null)?.response?.games
   if (!Array.isArray(games)) return []
 
@@ -64,8 +72,22 @@ function parseOwnedGamesResponse(raw: unknown): SteamOwnedGame[] {
 export async function getOwnedSteamGames(
   steamId64: string,
   apiKey: string,
-  http: OwnedGamesHttpDeps = realHttp
+  http: OwnedGamesHttpDeps = realHttp,
+  // A separate deps bag (not folded into OwnedGamesHttpDeps): this talks to
+  // a different Steam API than fetchOwnedGames does, and passing `undefined`
+  // here still lets getLibraryCoverArtUrls fall back to its own real deps.
+  coverArtHttp?: LibraryCoverArtHttpDeps
 ): Promise<SteamOwnedGame[]> {
   const raw = await http.fetchOwnedGames(steamId64, apiKey)
-  return parseOwnedGamesResponse(raw)
+  const games = parseOwnedGamesResponse(raw)
+  if (games.length === 0) return []
+
+  // A missing appId here just means no cover art was found for it — this
+  // lookup failing entirely (see library-cover-art.ts) never throws, so it
+  // can't take down the owned-games list it's decorating.
+  const coverUrls = await getLibraryCoverArtUrls(
+    games.map((game) => game.appId),
+    coverArtHttp
+  )
+  return games.map((game) => ({ ...game, coverUrl: coverUrls[game.appId] ?? null }))
 }
