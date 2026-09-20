@@ -3,15 +3,21 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestone 0 is partly done. `app/` is scaffolded (electron-vite, React + TS) and hardened to the project's Electron security rules. Typecheck, lint, 5 Vitest tests and `npm run build` pass, and `npm run dev` starts cleanly. It renders only a placeholder screen. Nothing is committed yet: `app/` is untracked. No installer has been built.
+Milestone 0 is partly done. `app/` is scaffolded (electron-vite, React + TS), hardened to the project's Electron security rules, and now styled with Tailwind v4 plus the design tokens and locally bundled Sora/Manrope fonts. Typecheck, lint, 5 Vitest tests and `npm run build` pass, and `npm run dev` starts cleanly. It renders only a placeholder screen, which I have not checked visually. The scaffold is committed (`988b742`); the step 3 changes are done but not yet committed. No installer has been built.
 
 ## In Progress
-Nothing active. Milestone 0 steps 1, 2 and 4 are done, and two independent `/review` passes found no blockers.
+Nothing active. Milestone 0 steps 1, 2, 3 and 4 are done. Step 3 got two `/review` passes; the second found no problems.
 
 ## Next Up
-Commit the scaffold, then Milestone 0 step 3: Tailwind with the CSS variable design tokens (read docs/design/direction.md first). After that: step 5 (remaining `src/main` folders: ipc, storage, library, stores/{steam,epic}) and step 6 (Windows installer via a GitHub Actions workflow).
+Milestone 0 step 5: create the remaining `src/main` folders (ipc, storage, library, stores/{steam,epic}), then step 6 (Windows installer via a GitHub Actions workflow). Before step 6, look at the app window once to confirm the tokens and fonts render as intended.
 
 ---
+
+## 2026-09-20 (Milestone 0: Tailwind + design tokens)
+**Built:** Tailwind v4 (`tailwindcss`, `@tailwindcss/vite`) wired into the renderer in `electron.vite.config.ts`. `src/renderer/src/assets/main.css` now holds the design tokens from docs/design/direction.md in an `@theme static` block (10 colors, `--font-display`/`--font-body`, 8px `--spacing`, `--radius-card` 12px, `--radius-control` 8px), plus base styles. `App.tsx` restyled with token utilities. Fonts via `@fontsource-variable/sora` and `@fontsource-variable/manrope`.
+**Decisions:** Tokens live in CSS `@theme`, not a `tailwind.config` file (Tailwind v4 way; one source of truth). `@theme static` so every token is always emitted as a CSS variable, not only the ones a utility uses. Fonts come from npm packages so they ship in the app and work offline. `renderer.build.assetsInlineLimit: 0` so Vite never inlines assets as `data:` URIs, because the CSP has no `data:` for fonts. The CSP itself is unchanged.
+**Next:** step 5 (remaining `src/main` folders), then step 6 (installer workflow).
+**Blocked by:** nothing. Open items: `App.tsx` still has a temporary "Tokens loaded" chip to remove once real UI exists; `img-src` still allows `data:` and needs a decision for remote cover art; replace placeholder icons; verify the packaged asar has no `src/**` on the first CI build.
 
 ## 2026-09-20 (Milestone 0: scaffold)
 **Built:** `app/` from the electron-vite react-ts template, then reworked:

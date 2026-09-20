@@ -11,7 +11,7 @@ Windows-only Electron app: one cover-art library for Steam and Epic (more stores
 - Emulator / local dev: `npm run dev` (Electron window with HMR)
 
 ## Dev Commands
-Run from `app/` once it exists (planned, not yet scaffolded):
+Run from `app/`:
 - Start dev: `npm run dev`
 - Run tests: `npm test` (Vitest)
 - Lint / format: `npm run lint`, `npm run format`
@@ -57,3 +57,4 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 ## Gotchas
 <!-- Format: - [date] [what went wrong and the rule going forward] -->
 - [2026-09-20] Cleaned up a test run with `pkill -f "Electron"` and hit VS Code's helper process. Stop processes by exact PID only.
+- [2026-09-20] A `pgrep -P` loop to kill the dev tree hung on an empty list. List with `ps -eo pid,ppid,command`, check the project path, kill those PIDs, confirm with `ps -p`.

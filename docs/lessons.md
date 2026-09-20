@@ -10,6 +10,14 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-09-20 — PID-tree kill loop hung on an empty `pgrep -P`
+**What happened:** To stop the dev server by exact PID, I wrote a shell loop that walked child PIDs with `pgrep -P`. When the list of PIDs went empty, macOS `pgrep -P` printed usage and the loop never ended, so nothing was killed and the command timed out at 120s. The processes were then killed by listing PIDs from `ps` first.
+**Rule going forward:** Don't loop on `pgrep -P`. List the tree once with `ps -eo pid,ppid,command | grep <full project path>`, check every line belongs to this project, then `kill` those exact PIDs and confirm with `ps -p`.
+
+## 2026-09-20 — Vite inlines small assets as data: URIs, which the CSP blocks
+**What happened:** With bundled fonts, Vite inlined one font under 4 KB as a `data:` URI. The CSP has no `data:` for fonts, so it would have been refused. The `/review` subagent caught it; the build looked fine.
+**Rule going forward:** The renderer keeps `assetsInlineLimit: 0`. When adding assets, check the built CSS/HTML for `data:` URIs. Don't loosen the CSP to fix it.
+
 ## 2026-09-20 — Broad pkill killed an unrelated app's process
 **What happened:** After a test run of `npm run dev`, cleanup used `pkill -f "Electron"`. VS Code is also an Electron app, so the pattern matched one of its helper processes (its crash reporter). Nothing important broke, but it could have been worse.
 **Rule going forward:** Stop background processes by exact PID (`$!` from the launch, or `pgrep -f` on the full project path), never by a generic name like "Electron" or "node". Also, macOS has no `timeout` command; run in the background and kill by PID.

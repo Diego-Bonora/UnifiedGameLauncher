@@ -1,15 +1,52 @@
-/* Placeholder until Tailwind and the design tokens land (Milestone 0, step 3). */
-body {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  background: #0b0b0f;
-  color: #ededf2;
-  font-family: system-ui, sans-serif;
+/* Fonts come from npm packages so they ship inside the app and work offline. */
+@import '@fontsource-variable/sora';
+@import '@fontsource-variable/manrope';
+@import 'tailwindcss';
+
+/* Design tokens (docs/design/direction.md). Dark theme only in v1.
+   Declaring them in @theme makes Tailwind generate utilities such as
+   bg-surface, text-muted and border-border. `static` makes it emit every
+   token as a CSS variable (var(--color-accent)) even when no utility uses it
+   yet, so plain CSS and JS can rely on them. */
+@theme static {
+  --color-background: #0b0b10;
+  --color-surface: #14141c;
+  --color-surface-2: #1c1c27;
+  --color-border: #2a2a3a;
+  --color-text: #ececf3;
+  --color-muted: #9a9ab0;
+  --color-accent: #8b5cf6;
+  --color-accent-hover: #a78bfa;
+  --color-success: #34d399;
+  --color-danger: #f87171;
+
+  --font-display: 'Sora Variable', system-ui, sans-serif;
+  --font-body: 'Manrope Variable', system-ui, sans-serif;
+
+  /* 8px spacing scale: p-1 = 8px, p-2 = 16px, and so on. */
+  --spacing: 8px;
+
+  --radius-card: 12px;
+  --radius-control: 8px;
 }
 
-main {
-  text-align: center;
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-background);
+    color: var(--color-text);
+    font-family: var(--font-body);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+  }
 }
