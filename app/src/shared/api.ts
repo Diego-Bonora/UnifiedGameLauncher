@@ -1,4 +1,8 @@
-import type { SteamConnectionStatus, SteamInstalledGame } from './ipc/steam-channels'
+import type {
+  SteamConnectionStatus,
+  SteamInstalledGame,
+  SteamOwnedGame
+} from './ipc/steam-channels'
 
 // The complete surface the renderer may call. Each milestone adds named,
 // typed functions here (backed by zod-validated IPC in main), never a
@@ -13,5 +17,6 @@ export interface RendererApi {
     getConnectionStatus: () => Promise<SteamConnectionStatus>
     setApiKey: (apiKey: string) => Promise<SteamConnectionStatus>
     clearApiKey: () => Promise<SteamConnectionStatus>
+    getOwnedGames: () => Promise<SteamOwnedGame[]>
   }
 }

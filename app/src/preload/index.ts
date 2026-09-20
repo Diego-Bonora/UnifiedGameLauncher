@@ -13,7 +13,8 @@ const api: RendererApi = {
     disconnect: () => ipcRenderer.invoke(STEAM_CHANNELS.disconnect),
     getConnectionStatus: () => ipcRenderer.invoke(STEAM_CHANNELS.getConnectionStatus),
     setApiKey: (apiKey) => ipcRenderer.invoke(STEAM_CHANNELS.setApiKey, { apiKey }),
-    clearApiKey: () => ipcRenderer.invoke(STEAM_CHANNELS.clearApiKey)
+    clearApiKey: () => ipcRenderer.invoke(STEAM_CHANNELS.clearApiKey),
+    getOwnedGames: () => ipcRenderer.invoke(STEAM_CHANNELS.getOwnedGames)
   }
 }
 

@@ -1,8 +1,21 @@
 import { useEffect, useState } from 'react'
 import { APP_NAME } from '@shared/app-info'
-import type { SteamConnectionStatus, SteamInstalledGame } from '@shared/ipc/steam-channels'
+import type {
+  SteamConnectionStatus,
+  SteamInstalledGame,
+  SteamOwnedGame
+} from '@shared/ipc/steam-channels'
 
 type LoadState = 'loading' | 'loaded'
+
+// Tagged with the steamId64 it was fetched for, so a render can tell a
+// finished result apart from one that belongs to a PREVIOUS account (after
+// reconnecting as someone else) purely by comparison — no explicit "reset to
+// null" setState call needed in the effect below, which would otherwise run
+// synchronously in the effect body and trip react-hooks/set-state-in-effect
+// (see the getInstalledGames effect above for the same reasoning).
+type OwnedGamesResult =
+  { steamId64: string; games: SteamOwnedGame[] } | { steamId64: string; error: string }
 
 function App(): React.JSX.Element {
   const [state, setState] = useState<LoadState>('loading')
@@ -14,6 +27,7 @@ function App(): React.JSX.Element {
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [savingApiKey, setSavingApiKey] = useState(false)
+  const [ownedGamesResult, setOwnedGamesResult] = useState<OwnedGamesResult | null>(null)
 
   const handleLaunch = (appId: string): void => {
     setLaunchError(null)
@@ -90,6 +104,55 @@ function App(): React.JSX.Element {
       .catch(() => setConnection(null))
   }, [])
 
+  // Keyed on steamId64 too, not just status/hasApiKey: reconnecting as a
+  // DIFFERENT Steam account changes neither of those, but must still
+  // trigger a fresh fetch instead of leaving the previous account's list
+  // on screen under the new account's identity.
+  useEffect(() => {
+    if (connection?.status !== 'connected' || !connection.hasApiKey) return
+    const steamId64 = connection.steamId64
+    // Guards against two overlapping fetches (e.g. the user toggles the API
+    // key or reconnects twice in quick succession) resolving out of order —
+    // the cleanup below marks THIS run's promise stale before a newer run's
+    // effect body starts, so only the latest one is ever allowed to setState.
+    let ignore = false
+    window.api.steam
+      .getOwnedGames()
+      .then((games) => {
+        if (!ignore) setOwnedGamesResult({ steamId64, games })
+      })
+      .catch((err: unknown) => {
+        if (!ignore) {
+          setOwnedGamesResult({
+            steamId64,
+            error: err instanceof Error ? err.message : 'Could not load your Steam library.'
+          })
+        }
+      })
+    return () => {
+      ignore = true
+    }
+  }, [connection?.status, connection?.hasApiKey, connection?.steamId64])
+
+  const currentSteamId64 = connection?.status === 'connected' ? connection.steamId64 : null
+  // A result tagged for a DIFFERENT (e.g. previous) account is treated as
+  // "not here yet" rather than shown — this is what makes reconnecting as
+  // someone else fall back to a loading state instead of a stale list.
+  const ownedGamesForCurrentAccount =
+    ownedGamesResult !== null && ownedGamesResult.steamId64 === currentSteamId64
+      ? ownedGamesResult
+      : null
+  const showOwnedGames = connection?.status === 'connected' && connection.hasApiKey === true
+  const loadingOwnedGames = showOwnedGames && ownedGamesForCurrentAccount === null
+  const ownedGamesError =
+    ownedGamesForCurrentAccount !== null && 'error' in ownedGamesForCurrentAccount
+      ? ownedGamesForCurrentAccount.error
+      : null
+  const ownedGames =
+    ownedGamesForCurrentAccount !== null && 'games' in ownedGamesForCurrentAccount
+      ? ownedGamesForCurrentAccount.games
+      : null
+
   return (
     <main className="mx-auto flex h-full max-w-3xl flex-col gap-4 p-4">
       <h1 className="text-3xl font-semibold">{APP_NAME}</h1>
@@ -160,6 +223,38 @@ function App(): React.JSX.Element {
         </span>
         {apiKeyError !== null && <p className="text-danger">{apiKeyError}</p>}
       </section>
+
+      {showOwnedGames && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-xl font-semibold">Your Steam Library</h2>
+          {ownedGamesError !== null && <p className="text-danger">{ownedGamesError}</p>}
+          {loadingOwnedGames && (
+            <div className="flex flex-col gap-2" aria-busy="true">
+              {[0, 1].map((key) => (
+                <div key={key} className="h-14 animate-pulse rounded-card bg-surface-2" />
+              ))}
+            </div>
+          )}
+          {!loadingOwnedGames && ownedGames !== null && ownedGames.length === 0 && (
+            <p className="text-muted">
+              No games found. Your Steam library might be empty, or your profile&apos;s game details
+              might be set to private.
+            </p>
+          )}
+          {!loadingOwnedGames && ownedGames !== null && ownedGames.length > 0 && (
+            <ul className="flex flex-col gap-2">
+              {ownedGames.map((game) => (
+                <li
+                  key={game.appId}
+                  className="rounded-card border border-border bg-surface px-4 py-3"
+                >
+                  {game.title}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {launchError !== null && <p className="text-danger">{launchError}</p>}
 

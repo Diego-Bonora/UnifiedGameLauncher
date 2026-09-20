@@ -12,13 +12,19 @@ export const STEAM_CHANNELS = {
   disconnect: 'steam:disconnect',
   getConnectionStatus: 'steam:getConnectionStatus',
   setApiKey: 'steam:setApiKey',
-  clearApiKey: 'steam:clearApiKey'
+  clearApiKey: 'steam:clearApiKey',
+  getOwnedGames: 'steam:getOwnedGames'
 } as const
 
 export interface SteamInstalledGame {
   appId: string
   title: string
   installPath: string
+}
+
+export interface SteamOwnedGame {
+  appId: string
+  title: string
 }
 
 export interface SteamLaunchRequest {

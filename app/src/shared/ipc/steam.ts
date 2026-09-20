@@ -5,7 +5,8 @@ export { STEAM_CHANNELS } from './steam-channels'
 export type {
   SteamConnectionStatus,
   SteamInstalledGame,
-  SteamLaunchRequest
+  SteamLaunchRequest,
+  SteamOwnedGame
 } from './steam-channels'
 
 // Only main imports this file (it needs zod for validation). Preload and the
@@ -36,3 +37,7 @@ export const steamApiKeyPayloadSchema = z.object({
     .trim()
     .regex(/^[0-9a-fA-F]{32}$/)
 })
+
+// SteamOwnedGame gets no schema here either, for the same reason as
+// SteamConnectionStatus above: stores/steam/owned-games.ts already validates
+// Steam's raw API response entry-by-entry before this shape ever exists.

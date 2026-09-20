@@ -5,10 +5,12 @@ import {
   type SteamConnectionStatus
 } from '@shared/ipc/steam'
 import { cancelSteamSignIn, openSteamSignInInBrowser } from '../stores/steam/openid'
+import { getOwnedSteamGames } from '../stores/steam/owned-games'
 import {
   clearSteamConnection,
   getSteamConnection,
-  setSteamConnection
+  setSteamConnection,
+  type SteamConnection
 } from '../storage/connection-store'
 import { clearSecret, getSecret, setSecret } from '../storage/secret-store'
 
@@ -19,11 +21,19 @@ const STEAM_API_KEY_SECRET = 'steamApiKey'
 // A separate registration function (and file) from ipc/steam.ts: this one
 // pulls in the OpenID flow + connection/secret storage, keeping that import
 // graph apart from the plain install-detection handlers.
-async function buildConnectionStatus(): Promise<SteamConnectionStatus> {
+async function loadSteamAuthState(): Promise<{
+  connection: SteamConnection
+  apiKey: string | null
+}> {
   const [connection, apiKey] = await Promise.all([
     getSteamConnection(),
     getSecret(STEAM_API_KEY_SECRET)
   ])
+  return { connection, apiKey }
+}
+
+async function buildConnectionStatus(): Promise<SteamConnectionStatus> {
+  const { connection, apiKey } = await loadSteamAuthState()
   // Spread (not a hand-built object literal) preserves the discriminated
   // union: copying `status`/`steamId64` out separately would produce two
   // independent unions TS can no longer correlate with each other.
@@ -72,5 +82,22 @@ export function registerSteamAuthIpc(): void {
   ipcMain.handle(STEAM_CHANNELS.clearApiKey, async () => {
     await clearSecret(STEAM_API_KEY_SECRET)
     return buildConnectionStatus()
+  })
+
+  ipcMain.handle(STEAM_CHANNELS.getOwnedGames, async () => {
+    const { connection, apiKey } = await loadSteamAuthState()
+    if (connection.status !== 'connected' || apiKey === null) {
+      throw new Error('Connect Steam and add your Steam Web API key first.')
+    }
+    try {
+      return await getOwnedSteamGames(connection.steamId64, apiKey)
+    } catch (err) {
+      // A friendly, generic message — never the raw fetch/HTTP detail. The
+      // saved connection and API key are left untouched: a failed fetch
+      // (network down, Steam's API having an outage) isn't a reason to make
+      // the user reconnect or re-enter their key.
+      console.warn('[steam] could not fetch owned games:', err)
+      throw new Error('Could not load your Steam library. Please try again later.')
+    }
   })
 }
