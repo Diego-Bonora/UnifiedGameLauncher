@@ -1,37 +1,40 @@
 # Design Direction
 
-<!-- Generated during Session Zero via Claude design interview -->
-<!-- Referenced by CLAUDE.md for all UI work -->
-
 ## Audience & Tone
-<!-- Who uses this and what feeling should the UI convey -->
-<!-- e.g. "Professional developers — precise, minimal, no hand-holding" -->
-<!-- e.g. "Non-technical small business owners — warm, clear, reassuring" -->
+The author and a few friends who play across several stores. Fast, quiet, confident. The UI recedes and the games provide the color.
 
 ## Visual Language
-<!-- The aesthetic direction committed to for this project -->
+Dark, cinematic, cover-art-first. Dark theme only in v1.
 
 ### Color Palette
-<!-- Primary, secondary, accent, background, text -->
-<!-- Include hex values once decided -->
+Defined as CSS variables (design tokens):
+- Background `#0B0B10`
+- Surface `#14141C`, Surface-2 `#1C1C27`
+- Border `#2A2A3A`
+- Text `#ECECF3`, Muted `#9A9AB0`
+- Accent `#8B5CF6` (electric violet), Accent-hover `#A78BFA`
+- Success `#34D399`, Danger `#F87171`
+
+Store badges use each store's own color, small only. The violet accent is deliberately distinct from every store's brand color so the app never looks official or endorsed.
 
 ### Typography
-<!-- Display font and body font — with rationale -->
-<!-- Avoid generic defaults — commit to a distinctive choice -->
+Display **Sora**, body **Manrope** (confirmed). Fonts are bundled locally, never loaded from a CDN, because the app must work offline.
 
 ### Spacing & Layout
-<!-- e.g. "Generous whitespace, left-aligned, max-width 1200px" -->
+Left sidebar (All / Installed / Favorites / per-store / Settings) plus a poster grid of 2:3 covers. Generous gaps, 8px spacing scale.
 
 ### Component Style
-<!-- e.g. "Rounded corners, subtle shadows, no hard borders" -->
-<!-- e.g. "Sharp edges, high contrast, brutalist grid" -->
+8-12px radius, subtle elevation, no hard borders. Covers lift on hover and get an accent focus ring. Skeleton loaders while loading. A small "Offline — showing saved library" pill when offline.
 
 ## What This UI Should Feel Like
-<!-- One paragraph describing the experience -->
-<!-- e.g. "Like a well-designed developer tool — fast, precise, zero clutter" -->
+Like a well-lit game shelf at night: dark and calm, covers front and center, controls out of the way. Nothing blocks the way from opening the app to pressing Play.
 
 ## What to Avoid
-<!-- Explicit anti-patterns for this project's aesthetic -->
+- Official-looking store branding
+- Light theme (v1)
+- Glassmorphism or neon overload
+- Raw error strings (always friendly, e.g. "Reconnect your Steam account")
+- Generic template-dashboard look
 
 ## Inspiration
-<!-- Any apps, sites, or references that capture the direction -->
+Playnite (fullscreen mode), the Steam Library, Heroic Games Launcher.
