@@ -4,6 +4,7 @@ import {
   steamApiKeyPayloadSchema,
   type SteamConnectionStatus
 } from '@shared/ipc/steam'
+import { getCachedSteamLibrary, setCachedSteamLibrary } from '../library/library-cache'
 import { cancelSteamSignIn, openSteamSignInInBrowser } from '../stores/steam/openid'
 import { getOwnedSteamGames } from '../stores/steam/owned-games'
 import {
@@ -90,7 +91,12 @@ export function registerSteamAuthIpc(): void {
       throw new Error('Connect Steam and add your Steam Web API key first.')
     }
     try {
-      return await getOwnedSteamGames(connection.steamId64, apiKey)
+      const games = await getOwnedSteamGames(connection.steamId64, apiKey)
+      // Saving is best-effort: the user already has a good live result, so a
+      // full disk or locked file must not turn it into an error. The cache
+      // module has already logged the failure.
+      await setCachedSteamLibrary(connection.steamId64, games).catch(() => undefined)
+      return games
     } catch (err) {
       // A friendly, generic message — never the raw fetch/HTTP detail. The
       // saved connection and API key are left untouched: a failed fetch
@@ -99,5 +105,11 @@ export function registerSteamAuthIpc(): void {
       console.warn('[steam] could not fetch owned games:', err)
       throw new Error('Could not load your Steam library. Please try again later.')
     }
+  })
+
+  ipcMain.handle(STEAM_CHANNELS.getCachedLibrary, async () => {
+    const connection = await getSteamConnection()
+    if (connection.status !== 'connected') return null
+    return getCachedSteamLibrary(connection.steamId64)
   })
 }

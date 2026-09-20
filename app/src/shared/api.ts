@@ -18,5 +18,7 @@ export interface RendererApi {
     setApiKey: (apiKey: string) => Promise<SteamConnectionStatus>
     clearApiKey: () => Promise<SteamConnectionStatus>
     getOwnedGames: () => Promise<SteamOwnedGame[]>
+    // null when nothing is saved for the connected account yet.
+    getCachedLibrary: () => Promise<SteamOwnedGame[] | null>
   }
 }

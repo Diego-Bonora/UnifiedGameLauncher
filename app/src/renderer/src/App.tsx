@@ -29,6 +29,10 @@ function App(): React.JSX.Element {
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [savingApiKey, setSavingApiKey] = useState(false)
   const [ownedGamesResult, setOwnedGamesResult] = useState<OwnedGamesResult | null>(null)
+  const [cachedLibrary, setCachedLibrary] = useState<{
+    steamId64: string
+    games: SteamOwnedGame[]
+  } | null>(null)
 
   const handleLaunch = (appId: string): void => {
     setLaunchError(null)
@@ -135,6 +139,25 @@ function App(): React.JSX.Element {
     }
   }, [connection?.status, connection?.hasApiKey, connection?.steamId64])
 
+  // Saved copy of the library, shown instantly while the live fetch above is
+  // still running. Same steamId64 tagging and `ignore` guard as that effect.
+  useEffect(() => {
+    if (connection?.status !== 'connected' || !connection.hasApiKey) return
+    const steamId64 = connection.steamId64
+    let ignore = false
+    window.api.steam
+      .getCachedLibrary()
+      .then((games) => {
+        if (!ignore && games !== null) setCachedLibrary({ steamId64, games })
+      })
+      .catch(() => {
+        // No saved copy is not an error; the live fetch is still coming.
+      })
+    return () => {
+      ignore = true
+    }
+  }, [connection?.status, connection?.hasApiKey, connection?.steamId64])
+
   const currentSteamId64 = connection?.status === 'connected' ? connection.steamId64 : null
   // A result tagged for a DIFFERENT (e.g. previous) account is treated as
   // "not here yet" rather than shown — this is what makes reconnecting as
@@ -144,15 +167,21 @@ function App(): React.JSX.Element {
       ? ownedGamesResult
       : null
   const showOwnedGames = connection?.status === 'connected' && connection.hasApiKey === true
-  const loadingOwnedGames = showOwnedGames && ownedGamesForCurrentAccount === null
   const ownedGamesError =
     ownedGamesForCurrentAccount !== null && 'error' in ownedGamesForCurrentAccount
       ? ownedGamesForCurrentAccount.error
       : null
+  const cachedGames =
+    cachedLibrary !== null && cachedLibrary.steamId64 === currentSteamId64
+      ? cachedLibrary.games
+      : null
+  // Live result wins; the saved copy fills the gap until it arrives, and
+  // stays on screen if the live fetch fails.
   const ownedGames =
     ownedGamesForCurrentAccount !== null && 'games' in ownedGamesForCurrentAccount
       ? ownedGamesForCurrentAccount.games
-      : null
+      : cachedGames
+  const loadingOwnedGames = showOwnedGames && ownedGames === null && ownedGamesError === null
 
   return (
     <main className="mx-auto flex h-full max-w-6xl flex-col gap-4 p-4">

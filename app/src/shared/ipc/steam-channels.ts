@@ -13,7 +13,8 @@ export const STEAM_CHANNELS = {
   getConnectionStatus: 'steam:getConnectionStatus',
   setApiKey: 'steam:setApiKey',
   clearApiKey: 'steam:clearApiKey',
-  getOwnedGames: 'steam:getOwnedGames'
+  getOwnedGames: 'steam:getOwnedGames',
+  getCachedLibrary: 'steam:getCachedLibrary'
 } as const
 
 export interface SteamInstalledGame {
