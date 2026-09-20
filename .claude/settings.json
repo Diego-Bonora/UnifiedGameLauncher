@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[hook] File edited — run your formatter here'",
+            "description": "Replace this echo with your actual formatter, e.g: cd frontend && npx prettier --write $CLAUDE_TOOL_OUTPUT_PATH"
+          }
+        ]
+      }
+    ]
+  }
+}
