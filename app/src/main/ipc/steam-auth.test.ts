@@ -18,7 +18,12 @@ vi.mock('../stores/steam/openid', () => ({
   openSteamSignInInBrowser: vi.fn(),
   cancelSteamSignIn: vi.fn()
 }))
-vi.mock('../stores/steam/owned-games', () => ({ getOwnedSteamGames: vi.fn() }))
+// Keep the real SteamApiError so `instanceof` in the handler works; only the
+// network call is replaced.
+vi.mock('../stores/steam/owned-games', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../stores/steam/owned-games')>()),
+  getOwnedSteamGames: vi.fn()
+}))
 vi.mock('../storage/connection-store', () => ({
   getSteamConnection: vi.fn(),
   setSteamConnection: vi.fn(),
@@ -44,7 +49,7 @@ vi.mock('../library/library-cache', () => ({
 
 import { STEAM_CHANNELS } from '@shared/ipc/steam'
 import { registerSteamAuthIpc } from './steam-auth'
-import { getOwnedSteamGames } from '../stores/steam/owned-games'
+import { getOwnedSteamGames, SteamApiError } from '../stores/steam/owned-games'
 import { clearSteamConnection, getSteamConnection } from '../storage/connection-store'
 import { clearSecret, getSecret } from '../storage/secret-store'
 import { clearCovers, syncCovers, withLocalCoverUrls } from '../library/cover-cache'
@@ -56,6 +61,8 @@ import {
 
 const STEAM_ID = '76561197960287930'
 const GAMES = [{ appId: '10', title: 'Counter-Strike', coverUrl: null }]
+
+const live = (games: unknown): unknown => ({ source: 'live', games, problem: null })
 
 function invoke(channel: string): Promise<unknown> {
   const handler = handlers.get(channel)
@@ -84,7 +91,7 @@ describe('steam:getOwnedGames', () => {
     vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
     vi.mocked(setCachedSteamLibrary).mockResolvedValue(undefined)
 
-    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(GAMES)
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(live(GAMES))
     expect(setCachedSteamLibrary).toHaveBeenCalledWith(STEAM_ID, GAMES)
   })
 
@@ -95,7 +102,7 @@ describe('steam:getOwnedGames', () => {
     const local = [{ appId: '10', title: 'Counter-Strike', coverUrl: 'app-cover://covers/10' }]
     vi.mocked(withLocalCoverUrls).mockResolvedValue(local)
 
-    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(local)
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(live(local))
     expect(syncCovers).toHaveBeenCalledWith(GAMES)
   })
 
@@ -106,7 +113,7 @@ describe('steam:getOwnedGames', () => {
     // Never settles: if the handler awaited it, this test would time out.
     vi.mocked(syncCovers).mockReturnValue(new Promise(() => undefined))
 
-    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(GAMES)
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(live(GAMES))
   })
 
   it('still returns the live result when saving the cache fails', async () => {
@@ -114,12 +121,13 @@ describe('steam:getOwnedGames', () => {
     vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
     vi.mocked(setCachedSteamLibrary).mockRejectedValue(new Error('disk full'))
 
-    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(GAMES)
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(live(GAMES))
   })
 
   it('does not touch the cache, covers, connection or API key when the fetch fails', async () => {
     connectedWithKey()
     vi.mocked(getOwnedSteamGames).mockRejectedValue(new Error('network down'))
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue(null)
 
     await expect(invoke(STEAM_CHANNELS.getOwnedGames)).rejects.toThrow(
       'Could not load your Steam library. Please try again later.'
@@ -130,6 +138,105 @@ describe('steam:getOwnedGames', () => {
     expect(syncCovers).not.toHaveBeenCalled()
     expect(clearSteamConnection).not.toHaveBeenCalled()
     expect(clearSecret).not.toHaveBeenCalled()
+  })
+})
+
+describe('steam:getOwnedGames when the live fetch fails', () => {
+  const SAVED = [{ appId: '10', title: 'Counter-Strike', coverUrl: null }]
+
+  function expectNothingDeleted(): void {
+    expect(setCachedSteamLibrary).not.toHaveBeenCalled()
+    expect(clearCachedSteamLibrary).not.toHaveBeenCalled()
+    expect(clearCovers).not.toHaveBeenCalled()
+    expect(syncCovers).not.toHaveBeenCalled()
+    expect(clearSteamConnection).not.toHaveBeenCalled()
+    expect(clearSecret).not.toHaveBeenCalled()
+  }
+
+  it.each([
+    ['offline', new SteamApiError('offline', 'Could not reach Steam (TypeError)')],
+    ['keyRejected', new SteamApiError('keyRejected', 'Steam API responded with 403')],
+    ['unavailable', new SteamApiError('unavailable', 'Steam API responded with 503')]
+  ] as const)('falls back to the saved library and reports %s', async (problem, error) => {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockRejectedValue(error)
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue(SAVED)
+
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual({
+      source: 'cache',
+      games: SAVED,
+      problem
+    })
+    expect(getCachedSteamLibrary).toHaveBeenCalledWith(STEAM_ID)
+    expectNothingDeleted()
+  })
+
+  it('reports an error it does not recognize as unavailable, not as a rejected key', async () => {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockRejectedValue(new SyntaxError('Unexpected token <'))
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue(SAVED)
+
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toMatchObject({ problem: 'unavailable' })
+  })
+
+  it('returns local cover URLs for the saved copy too', async () => {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockRejectedValue(new SteamApiError('offline', 'x'))
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue(SAVED)
+    const local = [{ appId: '10', title: 'Counter-Strike', coverUrl: 'app-cover://covers/10' }]
+    vi.mocked(withLocalCoverUrls).mockResolvedValue(local)
+
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toMatchObject({ games: local })
+  })
+
+  it('still falls back when the saved library is empty', async () => {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockRejectedValue(new SteamApiError('offline', 'x'))
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue([])
+
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual({
+      source: 'cache',
+      games: [],
+      problem: 'offline'
+    })
+  })
+
+  it.each([
+    [
+      'offline',
+      new SteamApiError('offline', 'x'),
+      "You're offline, so your Steam library couldn't be loaded. It will load once you're back online."
+    ],
+    [
+      'keyRejected',
+      new SteamApiError('keyRejected', 'x'),
+      "Steam didn't accept your Web API key. Check that it's correct, or remove it and add it again."
+    ],
+    [
+      'unavailable',
+      new SteamApiError('unavailable', 'x'),
+      'Could not load your Steam library. Please try again later.'
+    ]
+  ] as const)(
+    'with nothing saved, throws a friendly message for %s',
+    async (_problem, error, message) => {
+      connectedWithKey()
+      vi.mocked(getOwnedSteamGames).mockRejectedValue(error)
+      vi.mocked(getCachedSteamLibrary).mockResolvedValue(null)
+
+      await expect(invoke(STEAM_CHANNELS.getOwnedGames)).rejects.toThrow(message)
+      expectNothingDeleted()
+    }
+  )
+
+  it('never leaks the raw error text to the renderer', async () => {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockRejectedValue(
+      new SteamApiError('unavailable', 'Steam API responded with 503 key=SECRET')
+    )
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue(null)
+
+    await expect(invoke(STEAM_CHANNELS.getOwnedGames)).rejects.not.toThrow(/SECRET|503/)
   })
 })
 

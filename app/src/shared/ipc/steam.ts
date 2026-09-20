@@ -7,7 +7,9 @@ export type {
   SteamInstalledGame,
   SteamLaunchRequest,
   SteamOwnedGame,
-  SteamCachedLibrary
+  SteamCachedLibrary,
+  SteamLibraryProblem,
+  SteamLibraryResult
 } from './steam-channels'
 
 // Only main imports this file (it needs zod for validation). Preload and the

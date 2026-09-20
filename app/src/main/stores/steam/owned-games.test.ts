@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { getOwnedSteamGames, type OwnedGamesHttpDeps } from './owned-games'
+import {
+  getOwnedSteamGames,
+  problemForFetchError,
+  problemForStatus,
+  SteamApiError,
+  type OwnedGamesHttpDeps
+} from './owned-games'
 import type { LibraryCoverArtHttpDeps } from './library-cover-art'
 
 function fakeHttp(response: unknown): OwnedGamesHttpDeps {
@@ -110,5 +116,43 @@ describe('getOwnedSteamGames', () => {
     }
     await getOwnedSteamGames('123', 'key', fakeHttp({ response: { games: [] } }), coverArtHttp)
     expect(called).toBe(false)
+  })
+})
+
+describe('problemForStatus', () => {
+  it.each([401, 403])('treats %i as Steam rejecting the key', (status) => {
+    expect(problemForStatus(status)).toBe('keyRejected')
+  })
+
+  it.each([400, 404, 429, 500, 502, 503])(
+    'does not blame the key for %i (Steam being unwell says nothing about it)',
+    (status) => {
+      expect(problemForStatus(status)).toBe('unavailable')
+    }
+  )
+})
+
+describe('problemForFetchError', () => {
+  it('treats a failed connection (what fetch throws when offline) as offline', () => {
+    expect(problemForFetchError(new TypeError('fetch failed'))).toBe('offline')
+  })
+
+  it('treats our own timeout as unavailable, not offline', () => {
+    const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    expect(problemForFetchError(timeout)).toBe('unavailable')
+  })
+
+  it('treats a non-Error rejection as offline rather than crashing', () => {
+    expect(problemForFetchError('boom')).toBe('offline')
+    expect(problemForFetchError(undefined)).toBe('offline')
+  })
+})
+
+describe('SteamApiError', () => {
+  it('carries the problem and is still an Error', () => {
+    const err = new SteamApiError('keyRejected', 'Steam API responded with 403')
+    expect(err).toBeInstanceOf(Error)
+    expect(err.problem).toBe('keyRejected')
+    expect(err.message).toBe('Steam API responded with 403')
   })
 })

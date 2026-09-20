@@ -2,7 +2,10 @@ import { ipcMain } from 'electron'
 import {
   STEAM_CHANNELS,
   steamApiKeyPayloadSchema,
-  type SteamConnectionStatus
+  type SteamConnectionStatus,
+  type SteamLibraryProblem,
+  type SteamLibraryResult,
+  type SteamOwnedGame
 } from '@shared/ipc/steam'
 import { clearCovers, syncCovers, withLocalCoverUrls } from '../library/cover-cache'
 import {
@@ -11,7 +14,7 @@ import {
   setCachedSteamLibrary
 } from '../library/library-cache'
 import { cancelSteamSignIn, openSteamSignInInBrowser } from '../stores/steam/openid'
-import { getOwnedSteamGames } from '../stores/steam/owned-games'
+import { getOwnedSteamGames, SteamApiError } from '../stores/steam/owned-games'
 import {
   clearSteamConnection,
   getSteamConnection,
@@ -23,6 +26,16 @@ import { clearSecret, getSecret, setSecret } from '../storage/secret-store'
 // This app's only secret today; kept here (not in secret-store.ts, which
 // stays store-agnostic) since only this file's handlers ever read or write it.
 const STEAM_API_KEY_SECRET = 'steamApiKey'
+
+// Shown only when there is NO saved library to fall back on; otherwise the
+// library itself is shown and the renderer words the notice from `problem`.
+const LIBRARY_PROBLEM_MESSAGES: Record<SteamLibraryProblem, string> = {
+  offline:
+    "You're offline, so your Steam library couldn't be loaded. It will load once you're back online.",
+  keyRejected:
+    "Steam didn't accept your Web API key. Check that it's correct, or remove it and add it again.",
+  unavailable: 'Could not load your Steam library. Please try again later.'
+}
 
 // A separate registration function (and file) from ipc/steam.ts: this one
 // pulls in the OpenID flow + connection/secret storage, keeping that import
@@ -99,25 +112,44 @@ export function registerSteamAuthIpc(): void {
     if (connection.status !== 'connected' || apiKey === null) {
       throw new Error('Connect Steam and add your Steam Web API key first.')
     }
+    let games: SteamOwnedGame[]
     try {
-      const games = await getOwnedSteamGames(connection.steamId64, apiKey)
-      // Saving is best-effort: the user already has a good live result, so a
-      // full disk or locked file must not turn it into an error. The cache
-      // module has already logged the failure.
-      await setCachedSteamLibrary(connection.steamId64, games).catch(() => undefined)
-      // Not awaited: the grid must not wait on ~100 image downloads. They
-      // land on disk for the NEXT load; this one uses whatever is already
-      // there and the remote URL for the rest. syncCovers never rejects.
-      void syncCovers(games)
-      return await withLocalCoverUrls(games)
+      games = await getOwnedSteamGames(connection.steamId64, apiKey)
     } catch (err) {
-      // A friendly, generic message — never the raw fetch/HTTP detail. The
-      // saved connection and API key are left untouched: a failed fetch
-      // (network down, Steam's API having an outage) isn't a reason to make
-      // the user reconnect or re-enter their key.
-      console.warn('[steam] could not fetch owned games:', err)
-      throw new Error('Could not load your Steam library. Please try again later.')
+      // Whatever the reason, the saved connection and API key stay exactly
+      // as they are: a failed fetch (no connection, Steam having an outage,
+      // even Steam refusing the key) is never a reason to delete them. The
+      // user removes a bad key themselves.
+      const problem = err instanceof SteamApiError ? err.problem : 'unavailable'
+      console.warn(`[steam] could not fetch owned games (${problem}):`, err)
+
+      // Fall back to the saved copy when there is one, so the library still
+      // shows; the renderer uses `problem` to say why it is a saved copy.
+      const cached = await getCachedSteamLibrary(connection.steamId64)
+      if (cached !== null) {
+        return {
+          source: 'cache',
+          games: await withLocalCoverUrls(cached),
+          problem
+        } satisfies SteamLibraryResult
+      }
+      // Nothing saved to show: a friendly message, never the raw detail.
+      throw new Error(LIBRARY_PROBLEM_MESSAGES[problem])
     }
+
+    // Saving is best-effort: the user already has a good live result, so a
+    // full disk or locked file must not turn it into an error. The cache
+    // module has already logged the failure.
+    await setCachedSteamLibrary(connection.steamId64, games).catch(() => undefined)
+    // Not awaited: the grid must not wait on ~100 image downloads. They land
+    // on disk for the NEXT load; this one uses whatever is already there and
+    // the remote URL for the rest. syncCovers never rejects.
+    void syncCovers(games)
+    return {
+      source: 'live',
+      games: await withLocalCoverUrls(games),
+      problem: null
+    } satisfies SteamLibraryResult
   })
 
   ipcMain.handle(STEAM_CHANNELS.getCachedLibrary, async () => {

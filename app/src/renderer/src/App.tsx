@@ -4,6 +4,7 @@ import type {
   SteamCachedLibrary,
   SteamConnectionStatus,
   SteamInstalledGame,
+  SteamLibraryProblem,
   SteamOwnedGame
 } from '@shared/ipc/steam-channels'
 import GameCoverArt from './GameCoverArt'
@@ -18,10 +19,13 @@ type LoadState = 'loading' | 'loaded'
 // (see the getInstalledGames effect above for the same reasoning).
 // `games` and `error` are independent: a failed refresh keeps the last good
 // list for that account (games set, error set) instead of discarding it.
+// `problem` is different from `error`: it means main DID hand back a list (the
+// saved copy) and says why it wasn't a live one; `error` means nothing came back.
 interface OwnedGamesResult {
   steamId64: string
   games: SteamOwnedGame[] | null
   error: string | null
+  problem: SteamLibraryProblem | null
 }
 
 function App(): React.JSX.Element {
@@ -36,6 +40,10 @@ function App(): React.JSX.Element {
   const [savingApiKey, setSavingApiKey] = useState(false)
   const [ownedGamesResult, setOwnedGamesResult] = useState<OwnedGamesResult | null>(null)
   const [cachedLibrary, setCachedLibrary] = useState<SteamCachedLibrary | null>(null)
+  // Bumped when the browser reports the connection is back, to re-run the
+  // live fetch below. The event is only a trigger: whether we are really
+  // offline is decided by the fetch itself failing, never by this flag.
+  const [refreshTick, setRefreshTick] = useState(0)
 
   const handleLaunch = (appId: string): void => {
     setLaunchError(null)
@@ -126,8 +134,15 @@ function App(): React.JSX.Element {
     let ignore = false
     window.api.steam
       .getOwnedGames()
-      .then((games) => {
-        if (!ignore) setOwnedGamesResult({ steamId64, games, error: null })
+      .then((result) => {
+        if (!ignore) {
+          setOwnedGamesResult({
+            steamId64,
+            games: result.games,
+            error: null,
+            problem: result.problem
+          })
+        }
       })
       .catch((err: unknown) => {
         if (ignore) return
@@ -137,13 +152,20 @@ function App(): React.JSX.Element {
         setOwnedGamesResult((previous) => ({
           steamId64,
           games: previous?.steamId64 === steamId64 ? previous.games : null,
-          error
+          error,
+          problem: null
         }))
       })
     return () => {
       ignore = true
     }
-  }, [connection?.status, connection?.hasApiKey, connection?.steamId64])
+  }, [connection?.status, connection?.hasApiKey, connection?.steamId64, refreshTick])
+
+  useEffect(() => {
+    const handleOnline = (): void => setRefreshTick((tick) => tick + 1)
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [])
 
   // Saved copy of the library, shown instantly while the live fetch above is
   // still running. Same steamId64 tagging and `ignore` guard as that effect.
@@ -174,6 +196,7 @@ function App(): React.JSX.Element {
       : null
   const showOwnedGames = connection?.status === 'connected' && connection.hasApiKey === true
   const ownedGamesError = ownedGamesForCurrentAccount?.error ?? null
+  const libraryProblem = ownedGamesForCurrentAccount?.problem ?? null
   const cachedGames =
     cachedLibrary !== null && cachedLibrary.steamId64 === currentSteamId64
       ? cachedLibrary.games
@@ -257,6 +280,26 @@ function App(): React.JSX.Element {
       {showOwnedGames && (
         <section className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">Your Steam Library</h2>
+          {libraryProblem === 'offline' && (
+            <p
+              role="status"
+              className="inline-flex w-fit items-center gap-2 rounded-full bg-surface-2 px-3 py-1 text-xs text-muted"
+            >
+              <span className="h-2 w-2 rounded-full bg-muted" aria-hidden="true" />
+              Offline — showing saved library
+            </p>
+          )}
+          {libraryProblem === 'keyRejected' && (
+            <p className="text-danger">
+              Steam didn&apos;t accept your Web API key, so this is your saved library. Check the
+              key above, or remove it and add it again.
+            </p>
+          )}
+          {libraryProblem === 'unavailable' && (
+            <p className="text-sm text-muted">
+              Steam isn&apos;t responding right now, so this is your saved library.
+            </p>
+          )}
           {ownedGamesError !== null && <p className="text-danger">{ownedGamesError}</p>}
           {ownedGamesError !== null && ownedGames !== null && (
             <p className="text-sm text-muted">Showing your last saved library.</p>

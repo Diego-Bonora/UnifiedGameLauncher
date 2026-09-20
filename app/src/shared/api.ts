@@ -2,7 +2,7 @@ import type {
   SteamCachedLibrary,
   SteamConnectionStatus,
   SteamInstalledGame,
-  SteamOwnedGame
+  SteamLibraryResult
 } from './ipc/steam-channels'
 
 // The complete surface the renderer may call. Each milestone adds named,
@@ -18,7 +18,9 @@ export interface RendererApi {
     getConnectionStatus: () => Promise<SteamConnectionStatus>
     setApiKey: (apiKey: string) => Promise<SteamConnectionStatus>
     clearApiKey: () => Promise<SteamConnectionStatus>
-    getOwnedGames: () => Promise<SteamOwnedGame[]>
+    // Rejects with a friendly message when there is no saved copy to fall
+    // back on; otherwise resolves, with `problem` set if it had to fall back.
+    getOwnedGames: () => Promise<SteamLibraryResult>
     // null when nothing is saved for the connected account yet.
     getCachedLibrary: () => Promise<SteamCachedLibrary | null>
   }

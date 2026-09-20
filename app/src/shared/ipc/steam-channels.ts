@@ -30,6 +30,19 @@ export interface SteamOwnedGame {
   coverUrl: string | null
 }
 
+// Why a live refresh of the library didn't happen. Main decides this from the
+// failure it saw; the renderer only maps it to wording.
+//  - offline: Steam couldn't be reached at all (no connection, DNS failure)
+//  - keyRejected: Steam answered 401/403, i.e. it did not accept the API key
+//  - unavailable: anything else (Steam erroring, rate limits, timeouts)
+export type SteamLibraryProblem = 'offline' | 'keyRejected' | 'unavailable'
+
+// `source: 'cache'` means the games are the saved copy because the live
+// refresh failed; `problem` says why. For `source: 'live'`, problem is null.
+export type SteamLibraryResult =
+  | { source: 'live'; games: SteamOwnedGame[]; problem: null }
+  | { source: 'cache'; games: SteamOwnedGame[]; problem: SteamLibraryProblem }
+
 // The steamId64 is set by main from the same connection read that picked the
 // cache entry, so the renderer never has to guess which account a list
 // belongs to (it could otherwise mislabel it if the account changed while

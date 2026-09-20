@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { SteamLibraryProblem } from '@shared/ipc/steam-channels'
 import { getLibraryCoverArtUrls, type LibraryCoverArtHttpDeps } from './library-cover-art'
 
 // Only the fields used today. Steam's response carries a lot more
@@ -21,6 +22,36 @@ export interface OwnedGamesHttpDeps {
 // renderer's loading state spinning indefinitely with no error to show.
 const FETCH_TIMEOUT_MS = 15_000
 
+// A failure carrying WHY it happened, so the caller can tell "no connection"
+// (keep everything, show the saved library) from "Steam rejected the key"
+// (tell the user to check it) without parsing message text.
+export class SteamApiError extends Error {
+  readonly problem: SteamLibraryProblem
+
+  constructor(problem: SteamLibraryProblem, message: string) {
+    super(message)
+    this.name = 'SteamApiError'
+    this.problem = problem
+  }
+}
+
+// Only 401/403 mean "Steam looked at the key and said no". Everything else
+// (429, 5xx, a maintenance page) is Steam being unwell, which says nothing
+// about the key, so it must never lead to telling the user to replace it.
+export function problemForStatus(status: number): SteamLibraryProblem {
+  return status === 401 || status === 403 ? 'keyRejected' : 'unavailable'
+}
+
+// fetch() rejecting means no HTTP response arrived at all. A timeout (our own
+// AbortSignal.timeout) is a hung or slow connection rather than a missing one,
+// so it is "unavailable"; the rest (DNS failure, refused or reset connection,
+// no route) is what being offline looks like. Steam itself being down can look
+// the same from here, which is why the UI says "offline" only as far as
+// "couldn't reach Steam".
+export function problemForFetchError(err: unknown): SteamLibraryProblem {
+  return err instanceof Error && err.name === 'TimeoutError' ? 'unavailable' : 'offline'
+}
+
 // Real deps default: a real call to Steam's Web API. Threaded through as a
 // parameter (not hardcoded) so response parsing can be tested with fixed,
 // fake payloads instead of a real network call and a real API key.
@@ -31,12 +62,24 @@ const realHttp: OwnedGamesHttpDeps = {
       steamid: steamId64,
       include_appinfo: '1'
     })
-    const response = await fetch(
-      `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?${params.toString()}`,
-      { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
-    )
+    let response: Response
+    try {
+      response = await fetch(
+        `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?${params.toString()}`,
+        { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
+      )
+    } catch (err) {
+      // Only the error's name, not its text or `cause`: a fetch error can
+      // echo the request URL, and this one contains the API key. The name
+      // (TypeError, TimeoutError) is enough to debug from.
+      const name = err instanceof Error ? err.name : 'unknown error'
+      throw new SteamApiError(problemForFetchError(err), `Could not reach Steam (${name})`)
+    }
     if (!response.ok) {
-      throw new Error(`Steam API responded with ${response.status}`)
+      throw new SteamApiError(
+        problemForStatus(response.status),
+        `Steam API responded with ${response.status}`
+      )
     }
     return response.json()
   }
