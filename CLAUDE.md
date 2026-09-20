@@ -56,6 +56,7 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 
 ## Gotchas
 <!-- Format: - [date] [what went wrong and the rule going forward] -->
+- [2026-09-20] A `zod` import reached `preload/index.ts` via a shared IPC file; the sandboxed preload can't `require()` npm deps, so it crashed silently and the window rendered black. Keep preload's import graph dependency-free (split channel names/types from zod schemas).
 - [2026-09-20] Cleaned up a test run with `pkill -f "Electron"` and hit VS Code's helper process. Stop processes by exact PID only.
 - [2026-09-20] A `pgrep -P` loop to kill the dev tree hung on an empty list. List with `ps -eo pid,ppid,command`, check the project path, kill those PIDs, confirm with `ps -p`.
 - [2026-09-20] Guessed what "run it here" meant and started a download. When a request could mean dev app, installer or CI, ask first.

@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { APP_ID, APP_NAME } from '@shared/app-info'
 import { isAllowedExternalUrl, isSameOrigin } from './security/external-url'
+import { registerSteamIpc } from './ipc/steam'
 
 // Pin the data folder to %APPDATA%\<APP_NAME> so it can't drift if the
 // package name or installer productName ever changes. Must run before anything
@@ -89,6 +90,8 @@ if (!app.requestSingleInstanceLock()) {
       callback(false)
     })
     session.defaultSession.setPermissionCheckHandler(() => false)
+
+    registerSteamIpc()
 
     // Default open or close DevTools by F12 in development
     // and ignore CommandOrControl + R in production.

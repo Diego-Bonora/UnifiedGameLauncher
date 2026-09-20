@@ -24,7 +24,7 @@
     "test": "vitest run",
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "npm run typecheck && electron-vite build && node scripts/check-preload-deps.mjs",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder --win nsis --publish never"
@@ -33,7 +33,8 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@fontsource-variable/manrope": "^5.3.0",
-    "@fontsource-variable/sora": "^5.3.0"
+    "@fontsource-variable/sora": "^5.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
