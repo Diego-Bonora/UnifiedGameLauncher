@@ -10,6 +10,10 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-09-20 — Guessed what "run it here" meant and tried a download
+**What happened:** The user said "can you run it here so I can compare?" I assumed it meant downloading the CI installer to ~/Downloads and started that command. They rejected it: they meant `npm run dev` on the Mac, to compare it with the installed build on the PC.
+**Rule going forward:** When "run/open/test it" could mean more than one thing (dev app vs. built installer vs. CI job), ask which one in a single line before touching files outside the repo. Also: GitHub artifact links return 404 (not a login prompt) when signed out, so check sign-in before assuming the link is broken.
+
 ## 2026-09-20 — PID-tree kill loop hung on an empty `pgrep -P`
 **What happened:** To stop the dev server by exact PID, I wrote a shell loop that walked child PIDs with `pgrep -P`. When the list of PIDs went empty, macOS `pgrep -P` printed usage and the loop never ended, so nothing was killed and the command timed out at 120s. The processes were then killed by listing PIDs from `ps` first.
 **Rule going forward:** Don't loop on `pgrep -P`. List the tree once with `ps -eo pid,ppid,command | grep <full project path>`, check every line belongs to this project, then `kill` those exact PIDs and confirm with `ps -p`.
