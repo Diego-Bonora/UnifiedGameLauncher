@@ -129,6 +129,80 @@ describe('openSteamSignInInBrowser', () => {
     await expect(flow).resolves.toEqual({ failed: true })
   })
 
+  it('resolves as failed, not hung, when the verification request itself fails (offline)', async () => {
+    const returnTo = deferred<string>()
+    const deps: SignInDeps = {
+      openExternal: captureReturnTo(returnTo),
+      http: {
+        postCheckAuthentication: async () => {
+          throw new TypeError('fetch failed')
+        }
+      }
+    }
+
+    const flow = openSteamSignInInBrowser(deps)
+    const callbackUrl = await returnTo.promise
+    const response = await fetchCallback(callbackUrl)
+
+    // The browser tab gets the failure page, not a hang or a success page.
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('Something went wrong')
+    await expect(flow).resolves.toEqual({ failed: true })
+  })
+
+  it('does not show "signed in" in the tab when the flow was cancelled during verification', async () => {
+    const checkAuth = deferred<string>()
+    const verificationStarted = deferred<void>()
+    const returnTo = deferred<string>()
+    const flow = openSteamSignInInBrowser({
+      openExternal: captureReturnTo(returnTo),
+      http: {
+        postCheckAuthentication: () => {
+          verificationStarted.resolve()
+          return checkAuth.promise
+        }
+      }
+    })
+    const callbackUrl = await returnTo.promise
+
+    const responsePromise = fetchCallback(callbackUrl)
+    await verificationStarted.promise
+    cancelSteamSignIn()
+    checkAuth.resolve('is_valid:true')
+
+    const response = await responsePromise
+    expect(await response.text()).toContain('Something went wrong')
+    await expect(flow).resolves.toEqual({ cancelled: true })
+  })
+
+  it('verifies only the first callback; a second request cannot turn success into failure', async () => {
+    const checkAuth = deferred<string>()
+    const verificationStarted = deferred<void>()
+    const returnTo = deferred<string>()
+    let verifications = 0
+    const flow = openSteamSignInInBrowser({
+      openExternal: captureReturnTo(returnTo),
+      http: {
+        postCheckAuthentication: () => {
+          verifications += 1
+          verificationStarted.resolve()
+          return checkAuth.promise
+        }
+      }
+    })
+    const callbackUrl = await returnTo.promise
+
+    const first = fetchCallback(callbackUrl)
+    await verificationStarted.promise
+    const second = await fetchCallback(callbackUrl)
+    expect(second.status).toBe(409)
+
+    checkAuth.resolve('is_valid:true')
+    expect(await (await first).text()).toContain("You're signed in")
+    await expect(flow).resolves.toEqual({ steamId64: STEAM_ID_64 })
+    expect(verifications).toBe(1)
+  })
+
   it('resolves as cancelled when cancelSteamSignIn is called', async () => {
     const returnTo = deferred<string>()
     const deps: SignInDeps = {

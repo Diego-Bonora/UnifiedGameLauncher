@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { createServer } from 'node:http'
+import { createServer, type ServerResponse } from 'node:http'
 import { shell } from 'electron'
 
 // Loopback path Steam redirects back to once the user finishes signing in.
@@ -28,13 +28,22 @@ export interface OpenIdHttpDeps {
   postCheckAuthentication: (params: URLSearchParams) => Promise<string>
 }
 
+const VERIFY_TIMEOUT_MS = 15_000
+
 const realOpenIdHttp: OpenIdHttpDeps = {
   postCheckAuthentication: async (params) => {
     const response = await fetch('https://steamcommunity.com/openid/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString()
+      body: params.toString(),
+      // Without a cap, a stalled connection (captive portal, dropped
+      // packets) never rejects and the sign-in would wait out its whole
+      // 5-minute timeout instead of failing fast.
+      signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS)
     })
+    // A 5xx from Steam is "couldn't verify", not "login invalid"; throwing
+    // routes it through the same failure path as being offline.
+    if (!response.ok) throw new Error(`Steam verification returned HTTP ${response.status}`)
     return response.text()
   }
 }
@@ -138,6 +147,8 @@ export async function openSteamSignInInBrowser(
     // any time; without this local flag, a stale settle from an old flow
     // could still race a newer flow's promise (see docs/lessons.md).
     let settled = false
+    // Local for the same reason: only the first callback request is verified.
+    let handled = false
 
     // A per-flow random token, not just a fixed path: without it, anyone
     // who completes their OWN legitimate Steam login during the window this
@@ -154,17 +165,44 @@ export async function openSteamSignInInBrowser(
         return
       }
 
-      void verifySteamOpenIdResponse(url.searchParams, deps.http).then((steamId64) => {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-        res.end(steamId64 !== null ? SUCCESS_HTML : FAILURE_HTML)
-        if (steamId64 === null) {
-          console.warn('[steam] OpenID callback failed verification')
-          settle({ failed: true })
-        } else {
-          settle({ steamId64 })
-        }
-      })
+      // Only the first callback is verified. Steam rejects a replayed
+      // nonce, so a reload or double-fire that finished verifying first
+      // would otherwise settle the flow as failed and drop the valid one.
+      if (handled) {
+        res.writeHead(409, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Already handled.')
+        return
+      }
+      handled = true
+
+      void handleCallback(url.searchParams, res)
     })
+
+    async function handleCallback(params: URLSearchParams, res: ServerResponse): Promise<void> {
+      let steamId64: string | null = null
+      try {
+        steamId64 = await verifySteamOpenIdResponse(params, deps.http)
+        if (steamId64 === null) console.warn('[steam] OpenID callback failed verification')
+      } catch (err) {
+        // Offline, timed out or a Steam 5xx: treated as a failed sign-in so
+        // the user can retry, instead of hanging until the flow timeout.
+        console.warn('[steam] OpenID verification request failed:', err)
+      }
+
+      // Decide the page from whether THIS flow still accepts the result: it
+      // may have been cancelled, timed out or replaced while we were
+      // waiting on Steam, and the tab must not claim success then.
+      const accepted = steamId64 !== null && !settled
+      // Settle before writing: settle is idempotent and independent of the
+      // socket, so a write error can never leave the flow hanging.
+      settle(steamId64 !== null ? { steamId64 } : { failed: true })
+
+      try {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+        res.end(accepted ? SUCCESS_HTML : FAILURE_HTML)
+      } catch (err) {
+        console.warn('[steam] could not answer the sign-in callback:', err)
+      }
+    }
 
     const settle = (result: SteamSignInResult): void => {
       if (settled) return

@@ -3,15 +3,22 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestone 3 (library cache + offline mode) is done, committed (`cac3b0e`..`1749c6f`) and verified in the macOS dev app, including a forced-offline run. Nothing is uncommitted. Windows installer testing for Milestones 2 and 3 is still outstanding.
+Milestone 3 (library cache + offline mode) is done, committed (`cac3b0e`..`1749c6f`) and verified in the macOS dev app, including a forced-offline run. The Steam sign-in verification `.catch` fix is also done and committed (see the 2026-09-20 sign-in fix entry). Nothing is uncommitted. Windows installer testing for Milestones 2 and 3 is still outstanding.
 
 ## In Progress
 Nothing active.
 
 ## Next Up
-Fix the missing `.catch` in the Steam sign-in verification (`openid.ts:157`, see the open items below), reviewed before committing, then start Milestone 4 (Epic: installed detection + launch first).
+Start Milestone 4 (Epic: installed detection + launch first, no login).
 
 ---
+
+## 2026-09-20 (Steam sign-in verification fix)
+**Built:** `openid.ts` loopback callback is now an async `handleCallback`. A network failure, timeout or Steam 5xx while verifying resolves the sign-in as `{ failed: true }` and shows the failure page, instead of an unhandled rejection that hung until the 5-minute timeout. 3 new tests (225 total).
+**Decisions:** `settle()` runs before the response is written (write in try/catch); the tab shows "signed in" only if this flow still accepted the result; a per-flow `handled` flag verifies only the first callback (later ones get 409); the verification `fetch` has a 15 s timeout and throws on non-2xx. Offline and rejected login still share one message; a `reason: 'network'` variant is deferred to Epic's login (Milestone 4).
+**Fixed by review:** two `/review` passes. Round 1 found the write-before-settle hang, wrong page after cancel, double-callback failure, no timeout, weak test. Round 2 found nothing.
+**Not done (optional):** a flow cancelled mid-verification does not abort its Steam request (result is discarded).
+**Next:** Milestone 4.
 
 ## 2026-09-20 (Milestone 3: library cache + offline mode)
 **Built:** 7 commits (`cac3b0e`..`1749c6f`), 24 files, 222 Vitest tests (73 before).
@@ -22,8 +29,8 @@ Fix the missing `.catch` in the Steam sign-in verification (`openid.ts:157`, see
 **Decisions:** Covers on disk + a custom protocol, so offline covers are real. Expected failures come back as data (Electron prefixes thrown IPC errors); the renderer owns all wording. Saved covers are never re-downloaded (delete `covers/` to refresh).
 **Fixed by review:** empty body saved as a permanent blank cover; size cap not enforced while streaming; empty answer overwrote the saved library; stale "key rejected" notice after a key change; no retry if `online` never fires; cover downgrade race.
 **Verified (macOS dev, real account):** relaunch shows the library instantly; forced-offline run (dead proxy) showed the pill, left saved data untouched, one retry per 60 s at steady state; with `covers/` emptied the grid went from 94 remote covers at +1 s to 94 local at +3 s; Reconnect Steam works. Not tested on the Windows installer.
-**Next:** the sign-in `.catch` fix, then Milestone 4.
-**Blocked by:** nothing. Open items: `openid.ts:157` `verifySteamOpenIdResponse(...).then(...)` has no `.catch`, so a network failure at the sign-in callback is an unhandled rejection and the sign-in hangs until its timeout; `setApiKey` still throws its message (Electron prefix); the renderer keeps the old list in memory after disconnect (no Disconnect button yet); `deriveLibraryView` extraction from `App.tsx`; real `fetchImage`/`writeFile`/`deleteFile` in `cover-cache.ts` untested; global `fetch` ignores system proxy settings; Windows installer test of M2 + M3.
+**Next:** Milestone 4 (the sign-in `.catch` fix was done afterwards).
+**Blocked by:** nothing. Open items: `setApiKey` still throws its message (Electron prefix); the renderer keeps the old list in memory after disconnect (no Disconnect button yet); `deriveLibraryView` extraction from `App.tsx`; real `fetchImage`/`writeFile`/`deleteFile` in `cover-cache.ts` untested; global `fetch` ignores system proxy settings; Windows installer test of M2 + M3.
 
 ## 2026-09-20 (Milestone 2, Steps 2–4: API key, owned library, cover art)
 **Built:** Step 2 (committed `9c96467`): `secret-store.ts` (safeStorage-backed encrypted key/value store, generic so Epic's tokens can reuse it), API key save/remove UI + `setApiKey`/`clearApiKey` IPC, `hasApiKey` wired into connection status. Step 3 (committed `9f89929`): `owned-games.ts` (`IPlayerService/GetOwnedGames/v1`, injectable HTTP deps, 15s timeout), `getOwnedGames` IPC (requires connection + API key), a "Your Steam Library" list. Step 4 (done, **uncommitted**): `library-cover-art.ts` (batches owned appIds through Steam's undocumented `IStoreBrowseService/GetItems` API to get each app's real cover-art filename), `coverUrl` attached to each owned game, a poster grid (`GameCoverArt.tsx`) matching docs/design/direction.md, CSP `img-src` widened to `shared.akamai.steamstatic.com`.
