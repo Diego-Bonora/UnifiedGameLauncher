@@ -28,9 +28,13 @@ export async function getInstalledEpicGames(
   let entries: string[]
   try {
     entries = await fs.readdir(manifestsDir)
-  } catch {
+  } catch (err) {
     // No folder just means Epic isn't installed (or nothing is installed
-    // through it): not an error, so no warning either.
+    // through it): not an error, so no warning. Anything else (permissions,
+    // a disk fault) would otherwise look identical to "no games".
+    if ((err as NodeJS.ErrnoException | null)?.code !== 'ENOENT') {
+      console.warn(`[epic] could not read the manifests folder: ${manifestsDir}`, err)
+    }
     return []
   }
 

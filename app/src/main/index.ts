@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { APP_ID, APP_NAME } from '@shared/app-info'
 import { isAllowedExternalUrl, isSameOrigin } from './security/external-url'
+import { registerEpicIpc } from './ipc/epic'
 import { registerSteamIpc } from './ipc/steam'
 import { registerSteamAuthIpc } from './ipc/steam-auth'
 import { registerCoverProtocol, registerCoverScheme } from './library/cover-protocol'
@@ -97,6 +98,7 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionCheckHandler(() => false)
 
     registerSteamIpc()
+    registerEpicIpc()
     registerSteamAuthIpc()
     registerCoverProtocol()
 

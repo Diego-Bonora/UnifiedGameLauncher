@@ -64,12 +64,24 @@ describe('getInstalledEpicGames', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const fs: EpicFsDeps = {
       readdir: async () => {
-        throw new Error('ENOENT')
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       },
       readFile: async () => ''
     }
     await expect(getInstalledEpicGames('M', fs)).resolves.toEqual([])
     expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('warns when the folder cannot be read for a reason other than not existing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const fs: EpicFsDeps = {
+      readdir: async () => {
+        throw Object.assign(new Error('denied'), { code: 'EACCES' })
+      },
+      readFile: async () => ''
+    }
+    await expect(getInstalledEpicGames('M', fs)).resolves.toEqual([])
+    expect(warn).toHaveBeenCalledTimes(1)
   })
 
   it('accepts an upper-case .ITEM extension', async () => {

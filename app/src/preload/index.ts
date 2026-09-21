@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { RendererApi } from '@shared/api'
+import { EPIC_CHANNELS } from '@shared/ipc/epic-channels'
 import { STEAM_CHANNELS } from '@shared/ipc/steam-channels'
 
 // Deliberately not exposing Electron's generic ipcRenderer: the renderer gets
@@ -25,6 +26,10 @@ const api: RendererApi = {
         ipcRenderer.removeListener(STEAM_CHANNELS.coversChanged, listener)
       }
     }
+  },
+  epic: {
+    getInstalledGames: () => ipcRenderer.invoke(EPIC_CHANNELS.getInstalledGames),
+    launch: (appName) => ipcRenderer.invoke(EPIC_CHANNELS.launch, { appName })
   }
 }
 

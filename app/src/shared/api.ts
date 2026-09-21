@@ -1,3 +1,4 @@
+import type { EpicInstalledGame, EpicLaunchResult } from './ipc/epic-channels'
 import type {
   SteamCachedLibrary,
   SteamConnectionStatus,
@@ -26,5 +27,12 @@ export interface RendererApi {
     // Called when new cover images have been saved to disk, so the window can
     // pick up the local copies. Returns a function that stops listening.
     onCoversChanged: (callback: () => void) => () => void
+  }
+  epic: {
+    getInstalledGames: () => Promise<EpicInstalledGame[]>
+    // Resolves for every expected outcome, including `launched: false` when
+    // the game was uninstalled or the Epic launcher can't be reached; rejects
+    // only for a malformed request.
+    launch: (appName: string) => Promise<EpicLaunchResult>
   }
 }
