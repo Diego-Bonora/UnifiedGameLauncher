@@ -10,6 +10,10 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-09-21 — Built on an assumed Epic manifest shape and an assumed "public" endpoint; the real thing differed
+**What happened:** Every Epic fixture and test assumed a base game's `MainGameAppName` equals its `AppName`, and a reviewer said that "matches real Epic manifests" without checking. Two real manifests from a Windows PC showed it is an EMPTY string. The parser survived only because it happened to treat empty as "no information". I also passed the wrong assumption into the prompt for the Windows session. Separately, an Epic endpoint described as "unauthenticated" answered a Cloudflare browser challenge (403) to a plain client, and the launcher catalog service answered 401, so the plan of getting covers without a login failed. A single plain request found that out in minutes.
+**Rule going forward:** For any third-party file format or endpoint, capture a real sample (or make one plain request) before building fixtures or a plan on it. Treat a reviewer's or a write-up's claim about a third-party format as unverified until then. Write fixtures in the real captured shape and add a test from the real sample. "No auth needed" claims must be tried with a plain non-browser request from the kind of client the app will be.
+
 ## 2026-09-20 — Ran /review after committing, so every step needed a fix-up commit
 **What happened:** Milestone 3 Steps 1–3 were committed first and reviewed second. Every review found real problems, so the history gained three "address review" commits on top of the three feature commits. The user asked "why not review first then commit?"; the `/review` skill is written to run before the commit, and only B1 followed that.
 **Rule going forward:** Review before committing. New files are untracked and make `git diff HEAD` empty, so run `git add -N <new files>` first (index only, no content change), review the working-tree diff, fix, run tests and `npm run build`, then commit once. Commit before review only if the user asks for it.
