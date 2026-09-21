@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@shared/app-info'
 import type {
   SteamCachedLibrary,
@@ -8,6 +8,7 @@ import type {
   SteamOwnedGame
 } from '@shared/ipc/steam-channels'
 import GameCoverArt from './GameCoverArt'
+import { libraryNotice, ONLINE_DEBOUNCE_MS, retryDelayMs } from './library-problems'
 
 type LoadState = 'loading' | 'loaded'
 
@@ -19,13 +20,16 @@ type LoadState = 'loading' | 'loaded'
 // (see the getInstalledGames effect above for the same reasoning).
 // `games` and `error` are independent: a failed refresh keeps the last good
 // list for that account (games set, error set) instead of discarding it.
-// `problem` is different from `error`: it means main DID hand back a list (the
-// saved copy) and says why it wasn't a live one; `error` means nothing came back.
+// `problem` is different from `error`: it is main's own report of why the
+// refresh failed (offline, key turned down, ...), with or without a saved copy
+// to show; `error` is only for the unexpected case where the call itself broke.
+// `failures` counts refreshes in a row that failed, for the retry backoff.
 interface OwnedGamesResult {
   steamId64: string
   games: SteamOwnedGame[] | null
   error: string | null
   problem: SteamLibraryProblem | null
+  failures: number
 }
 
 function App(): React.JSX.Element {
@@ -40,10 +44,15 @@ function App(): React.JSX.Element {
   const [savingApiKey, setSavingApiKey] = useState(false)
   const [ownedGamesResult, setOwnedGamesResult] = useState<OwnedGamesResult | null>(null)
   const [cachedLibrary, setCachedLibrary] = useState<SteamCachedLibrary | null>(null)
-  // Bumped when the browser reports the connection is back, to re-run the
-  // live fetch below. The event is only a trigger: whether we are really
-  // offline is decided by the fetch itself failing, never by this flag.
+  // Bumped to re-run the live fetch below: by the online event, the retry
+  // timer, the "Try again" button, or a changed API key. These are only
+  // triggers: whether we are really offline is decided by the fetch itself
+  // failing, never by the browser's online flag.
   const [refreshTick, setRefreshTick] = useState(0)
+  const requestRefresh = useCallback(() => setRefreshTick((tick) => tick + 1), [])
+  // True while a live fetch is running, so the retry timer doesn't start a
+  // second one on top of it.
+  const refreshingRef = useRef(false)
 
   const handleLaunch = (appId: string): void => {
     setLaunchError(null)
@@ -81,6 +90,11 @@ function App(): React.JSX.Element {
       .then((status) => {
         setConnection(status)
         setApiKeyInput('')
+        // A new key deserves a fresh attempt now, and must not sit under the
+        // previous key's "turned down" notice while it loads. Neither changes
+        // the effect's other dependencies when the key is merely replaced.
+        setOwnedGamesResult(null)
+        requestRefresh()
       })
       .catch((err: unknown) => {
         // The main-process handler already produces a friendly message for
@@ -94,7 +108,12 @@ function App(): React.JSX.Element {
   const handleClearApiKey = (): void => {
     window.api.steam
       .clearApiKey()
-      .then(setConnection)
+      .then((status) => {
+        setConnection(status)
+        // Otherwise the old result (and its notice) reappears if a key is
+        // added again before the next fetch lands.
+        setOwnedGamesResult(null)
+      })
       .catch(() => {
         setApiKeyError('Could not remove the saved API key.')
       })
@@ -125,36 +144,53 @@ function App(): React.JSX.Element {
   // trigger a fresh fetch instead of leaving the previous account's list
   // on screen under the new account's identity.
   useEffect(() => {
-    if (connection?.status !== 'connected' || !connection.hasApiKey) return
+    if (connection?.status !== 'connected' || !connection.hasApiKey) {
+      refreshingRef.current = false
+      return
+    }
     const steamId64 = connection.steamId64
     // Guards against two overlapping fetches (e.g. the user toggles the API
     // key or reconnects twice in quick succession) resolving out of order —
     // the cleanup below marks THIS run's promise stale before a newer run's
     // effect body starts, so only the latest one is ever allowed to setState.
     let ignore = false
+    refreshingRef.current = true
     window.api.steam
       .getOwnedGames()
       .then((result) => {
-        if (!ignore) {
-          setOwnedGamesResult({
+        if (ignore) return
+        setOwnedGamesResult((previous) => {
+          // Only carry state over from the SAME account — never another
+          // account's games or failure count across a reconnect.
+          const kept = previous !== null && previous.steamId64 === steamId64 ? previous : null
+          return {
             steamId64,
-            games: result.games,
+            // A 'none' result carries no games: keep what this account showed.
+            games: result.games ?? kept?.games ?? null,
             error: null,
-            problem: result.problem
-          })
-        }
+            problem: result.problem,
+            failures: result.problem === null ? 0 : (kept?.failures ?? 0) + 1
+          }
+        })
       })
       .catch((err: unknown) => {
         if (ignore) return
         const error = err instanceof Error ? err.message : 'Could not load your Steam library.'
-        // Keep the last good list, but only if it belongs to THIS account —
-        // never carry another account's games across a reconnect.
-        setOwnedGamesResult((previous) => ({
-          steamId64,
-          games: previous?.steamId64 === steamId64 ? previous.games : null,
-          error,
-          problem: null
-        }))
+        setOwnedGamesResult((previous) => {
+          const kept = previous !== null && previous.steamId64 === steamId64 ? previous : null
+          return {
+            steamId64,
+            games: kept?.games ?? null,
+            error,
+            problem: null,
+            failures: (kept?.failures ?? 0) + 1
+          }
+        })
+      })
+      .finally(() => {
+        // Only the latest run may say "no longer refreshing"; a superseded
+        // one finishing late must not clear its successor's flag.
+        if (!ignore) refreshingRef.current = false
       })
     return () => {
       ignore = true
@@ -162,10 +198,17 @@ function App(): React.JSX.Element {
   }, [connection?.status, connection?.hasApiKey, connection?.steamId64, refreshTick])
 
   useEffect(() => {
-    const handleOnline = (): void => setRefreshTick((tick) => tick + 1)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const handleOnline = (): void => {
+      clearTimeout(timer)
+      timer = setTimeout(requestRefresh, ONLINE_DEBOUNCE_MS)
+    }
     window.addEventListener('online', handleOnline)
-    return () => window.removeEventListener('online', handleOnline)
-  }, [])
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      clearTimeout(timer)
+    }
+  }, [requestRefresh])
 
   // Saved copy of the library, shown instantly while the live fetch above is
   // still running. Same steamId64 tagging and `ignore` guard as that effect.
@@ -204,7 +247,24 @@ function App(): React.JSX.Element {
   // Live result wins; the saved copy fills the gap until it arrives, and
   // stays on screen if the live fetch fails.
   const ownedGames = ownedGamesForCurrentAccount?.games ?? cachedGames
-  const loadingOwnedGames = showOwnedGames && ownedGames === null && ownedGamesError === null
+  const loadingOwnedGames =
+    showOwnedGames && ownedGames === null && ownedGamesError === null && libraryProblem === null
+  const notice = libraryProblem !== null ? libraryNotice(libraryProblem, ownedGames !== null) : null
+  const needsRetry = showOwnedGames && (libraryProblem !== null || ownedGamesError !== null)
+  const failures = ownedGamesForCurrentAccount?.failures ?? 0
+
+  // While a problem is showing, keep trying on our own: the browser's online
+  // event is unreliable (it can fire before the connection works, or never).
+  // Rescheduled whenever a new result arrives, so the delay follows the
+  // number of failures in a row.
+  useEffect(() => {
+    if (!needsRetry) return
+    const timer = setTimeout(() => {
+      // A fetch already running will report back on its own.
+      if (!refreshingRef.current) requestRefresh()
+    }, retryDelayMs(failures))
+    return () => clearTimeout(timer)
+  }, [needsRetry, failures, ownedGamesResult, requestRefresh])
 
   return (
     <main className="mx-auto flex h-full max-w-6xl flex-col gap-4 p-4">
@@ -280,29 +340,34 @@ function App(): React.JSX.Element {
       {showOwnedGames && (
         <section className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">Your Steam Library</h2>
-          {libraryProblem === 'offline' && (
-            <p
-              role="status"
-              className="inline-flex w-fit items-center gap-2 rounded-full bg-surface-2 px-3 py-1 text-xs text-muted"
-            >
-              <span className="h-2 w-2 rounded-full bg-muted" aria-hidden="true" />
-              Offline — showing saved library
-            </p>
-          )}
-          {libraryProblem === 'keyRejected' && (
-            <p className="text-danger">
-              Steam didn&apos;t accept your Web API key, so this is your saved library. Check the
-              key above, or remove it and add it again.
-            </p>
-          )}
-          {libraryProblem === 'unavailable' && (
-            <p className="text-sm text-muted">
-              Steam isn&apos;t responding right now, so this is your saved library.
-            </p>
-          )}
-          {ownedGamesError !== null && <p className="text-danger">{ownedGamesError}</p>}
-          {ownedGamesError !== null && ownedGames !== null && (
-            <p className="text-sm text-muted">Showing your last saved library.</p>
+          {needsRetry && (
+            <div className="flex flex-wrap items-center gap-3">
+              {notice?.tone === 'pill' && (
+                <p
+                  role="status"
+                  className="inline-flex w-fit items-center gap-2 rounded-full bg-surface-2 px-3 py-1 text-xs text-muted"
+                >
+                  <span className="h-2 w-2 rounded-full bg-muted" aria-hidden="true" />
+                  {notice.text}
+                </p>
+              )}
+              {notice !== null && notice.tone !== 'pill' && (
+                <p className={notice.tone === 'danger' ? 'text-danger' : 'text-sm text-muted'}>
+                  {notice.text}
+                </p>
+              )}
+              {ownedGamesError !== null && <p className="text-danger">{ownedGamesError}</p>}
+              {ownedGamesError !== null && ownedGames !== null && (
+                <p className="text-sm text-muted">Showing your last saved library.</p>
+              )}
+              <button
+                type="button"
+                onClick={requestRefresh}
+                className="rounded-control border border-border px-3 py-1 text-sm font-medium transition-colors hover:bg-surface-2"
+              >
+                Try again
+              </button>
+            </div>
           )}
           {loadingOwnedGames && (
             <div

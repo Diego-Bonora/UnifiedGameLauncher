@@ -18,8 +18,8 @@ export interface RendererApi {
     getConnectionStatus: () => Promise<SteamConnectionStatus>
     setApiKey: (apiKey: string) => Promise<SteamConnectionStatus>
     clearApiKey: () => Promise<SteamConnectionStatus>
-    // Rejects with a friendly message when there is no saved copy to fall
-    // back on; otherwise resolves, with `problem` set if it had to fall back.
+    // Resolves for every expected outcome (live, saved copy, or nothing to
+    // show); rejects only if main is called in the wrong state.
     getOwnedGames: () => Promise<SteamLibraryResult>
     // null when nothing is saved for the connected account yet.
     getCachedLibrary: () => Promise<SteamCachedLibrary | null>

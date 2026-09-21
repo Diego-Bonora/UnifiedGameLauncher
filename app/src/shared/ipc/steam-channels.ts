@@ -30,18 +30,29 @@ export interface SteamOwnedGame {
   coverUrl: string | null
 }
 
-// Why a live refresh of the library didn't happen. Main decides this from the
+// Why a live refresh of the library failed. Main decides this from the
 // failure it saw; the renderer only maps it to wording.
 //  - offline: Steam couldn't be reached at all (no connection, DNS failure)
-//  - keyRejected: Steam answered 401/403, i.e. it did not accept the API key
+//  - keyRejected: Steam answered 401/403. Usually a wrong key, but a firewall
+//    block on a good key answers the same way, so wording must say "may be"
 //  - unavailable: anything else (Steam erroring, rate limits, timeouts)
-export type SteamLibraryProblem = 'offline' | 'keyRejected' | 'unavailable'
+export type SteamLibraryFailure = 'offline' | 'keyRejected' | 'unavailable'
 
-// `source: 'cache'` means the games are the saved copy because the live
-// refresh failed; `problem` says why. For `source: 'live'`, problem is null.
+// A failure, or Steam answering successfully with an EMPTY library while a
+// non-empty saved copy exists (a private profile or a bad response looks the
+// same; a real library never shrinks to nothing).
+export type SteamLibraryProblem = SteamLibraryFailure | 'empty'
+
+// Expected failures come back as data, not as a thrown error: a rejected
+// ipcRenderer.invoke carries Electron's "Error invoking remote method ..."
+// prefix, which would reach the user. The renderer owns all the wording.
+//  - live:  fresh from Steam
+//  - cache: the saved copy, because the live refresh failed; `problem` says why
+//  - none:  the refresh failed and nothing is saved, so there is nothing to show
 export type SteamLibraryResult =
   | { source: 'live'; games: SteamOwnedGame[]; problem: null }
   | { source: 'cache'; games: SteamOwnedGame[]; problem: SteamLibraryProblem }
+  | { source: 'none'; games: null; problem: SteamLibraryFailure }
 
 // The steamId64 is set by main from the same connection read that picked the
 // cache entry, so the renderer never has to guess which account a list

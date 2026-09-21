@@ -8,6 +8,7 @@ export type {
   SteamLaunchRequest,
   SteamOwnedGame,
   SteamCachedLibrary,
+  SteamLibraryFailure,
   SteamLibraryProblem,
   SteamLibraryResult
 } from './steam-channels'

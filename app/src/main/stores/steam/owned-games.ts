@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { SteamLibraryProblem } from '@shared/ipc/steam-channels'
+import type { SteamLibraryFailure } from '@shared/ipc/steam-channels'
 import { getLibraryCoverArtUrls, type LibraryCoverArtHttpDeps } from './library-cover-art'
 
 // Only the fields used today. Steam's response carries a lot more
@@ -26,19 +26,23 @@ const FETCH_TIMEOUT_MS = 15_000
 // (keep everything, show the saved library) from "Steam rejected the key"
 // (tell the user to check it) without parsing message text.
 export class SteamApiError extends Error {
-  readonly problem: SteamLibraryProblem
+  readonly problem: SteamLibraryFailure
 
-  constructor(problem: SteamLibraryProblem, message: string) {
+  constructor(problem: SteamLibraryFailure, message: string) {
     super(message)
     this.name = 'SteamApiError'
     this.problem = problem
   }
 }
 
-// Only 401/403 mean "Steam looked at the key and said no". Everything else
-// (429, 5xx, a maintenance page) is Steam being unwell, which says nothing
-// about the key, so it must never lead to telling the user to replace it.
-export function problemForStatus(status: number): SteamLibraryProblem {
+// Only 401/403 mean "Steam said no to the request". Everything else (429,
+// 5xx, a maintenance page) is Steam being unwell, which says nothing about the
+// key, so it must never lead to telling the user to replace it.
+// Known limit: Steam's real bad-key answer is a plain 403, and its edge
+// firewall (Akamai, see CLAUDE.md gotchas) also answers 403 for a blocked
+// request. The two can't be told apart, so the UI says the key "may be" wrong
+// and nothing is ever deleted on this outcome.
+export function problemForStatus(status: number): SteamLibraryFailure {
   return status === 401 || status === 403 ? 'keyRejected' : 'unavailable'
 }
 
@@ -48,7 +52,7 @@ export function problemForStatus(status: number): SteamLibraryProblem {
 // no route) is what being offline looks like. Steam itself being down can look
 // the same from here, which is why the UI says "offline" only as far as
 // "couldn't reach Steam".
-export function problemForFetchError(err: unknown): SteamLibraryProblem {
+export function problemForFetchError(err: unknown): SteamLibraryFailure {
   return err instanceof Error && err.name === 'TimeoutError' ? 'unavailable' : 'offline'
 }
 

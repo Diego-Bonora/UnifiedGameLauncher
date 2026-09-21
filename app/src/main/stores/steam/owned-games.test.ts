@@ -142,6 +142,14 @@ describe('problemForFetchError', () => {
     expect(problemForFetchError(timeout)).toBe('unavailable')
   })
 
+  it('recognizes the error a real AbortSignal.timeout produces', async () => {
+    // The hand-built DOMException above matches what we THINK Node throws;
+    // this uses the real thing so a runtime change would show up here.
+    const signal = AbortSignal.timeout(1)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(problemForFetchError(signal.reason)).toBe('unavailable')
+  })
+
   it('treats a non-Error rejection as offline rather than crashing', () => {
     expect(problemForFetchError('boom')).toBe('offline')
     expect(problemForFetchError(undefined)).toBe('offline')
