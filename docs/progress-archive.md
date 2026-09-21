@@ -43,3 +43,11 @@
 **Decisions:** Artifact downloads from GitHub returned 404 in the browser on the PC until signed in to the right account; sign in first, or use `gh run download`. GitHub warns that `checkout@v4`, `setup-node@v4` and `upload-artifact@v4` use deprecated Node 20; not failing, bump later.
 **Next:** Milestone 1.
 **Blocked by:** nothing. Open items: remove the temporary "Tokens loaded" chip once real UI exists; decide `img-src` for remote cover art; replace placeholder icons; bump the Node 20 actions.
+
+## 2026-09-20 (Milestone 1: Steam installed games)
+**Built:** `src/main/stores/store-provider.ts` (shared `StoreProvider` interface). `src/main/stores/steam/`: `vdf.ts` (Valve KeyValues parser), `app-manifest.ts`, `library-folders.ts`, `steam-registry.ts` (`reg query`-based `SteamPath` lookup), `steam-provider.ts`, `index.ts` — each with a `*.test.ts` beside it (20 tests total). `src/shared/ipc/steam-channels.ts` (zero-dependency channel names/types) and `steam.ts` (main-only zod schemas). `src/main/ipc/steam.ts` (the `getInstalledGames`/`launch` handlers). Preload/renderer wiring. New `app/scripts/check-preload-deps.mjs`, wired into `npm run build`.
+**Decisions:** Registry access shells out to `reg query` via `child_process.execFile` instead of a native registry package. One VDF parser reused for both `.vdf`/`.acf` files. `getLaunchUrl` returns a URL string instead of launching directly, keeping the `steam://` allow-list check centralized in the IPC handler.
+**Fixed:** A real bug the user caught live — the sandboxed preload can only `require()` a small Electron built-in allowlist, not npm packages; a `zod` import reached it transitively and blanked the whole window. Fixed by splitting channel names/types (zero deps) from zod schemas (main-only). Two `/review` passes fixed a mislabeled IPC field, a silently-swallowed Play-button failure, a decorative zod schema never enforced, and added `check-preload-deps.mjs`.
+**Verified:** Committed as `c92bd09`, pushed, CI green. Installed on the Windows PC: list shows each detected Steam game with a Play button, launches through Steam.
+**Next:** Milestone 2 (Steam sign-in + owned library + cover art).
+**Blocked by:** nothing.
