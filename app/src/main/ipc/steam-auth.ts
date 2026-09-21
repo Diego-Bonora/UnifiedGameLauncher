@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import {
   STEAM_CHANNELS,
   steamApiKeyPayloadSchema,
@@ -49,6 +49,23 @@ async function buildConnectionStatus(): Promise<SteamConnectionStatus> {
   return { ...connection, hasApiKey: apiKey !== null }
 }
 
+// Tells every open window that new covers are on disk. No payload: the
+// window re-reads the library through the normal handler, which already
+// returns the local URLs.
+function notifyCoversChanged(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    // isDestroyed() can still be false for a window that is mid-teardown, and
+    // send() then throws. This runs in a .then with nothing after it, so an
+    // uncaught throw would be an unhandled rejection; and one bad window must
+    // not stop the others from being told.
+    try {
+      if (!window.isDestroyed()) window.webContents.send(STEAM_CHANNELS.coversChanged)
+    } catch (err) {
+      console.warn('[steam] could not tell a window about new covers:', err)
+    }
+  }
+}
+
 async function fallBackToSavedLibrary(
   steamId64: string,
   problem: SteamLibraryFailure
@@ -95,8 +112,12 @@ async function loadLibrary(steamId64: string, apiKey: string): Promise<SteamLibr
   await setCachedSteamLibrary(steamId64, games).catch(() => undefined)
   // Not awaited: the grid must not wait on ~100 image downloads. They land on
   // disk for the NEXT load; this one uses whatever is already there and the
-  // remote URL for the rest. syncCovers never rejects.
-  void syncCovers(games)
+  // remote URL for the rest. syncCovers never rejects; when it finishes with
+  // something new, the window is told so this session doesn't wait for a
+  // restart to show the local copies.
+  void syncCovers(games).then((downloaded) => {
+    if (downloaded > 0) notifyCoversChanged()
+  })
   return { source: 'live', games: await withLocalCoverUrls(games), problem: null }
 }
 

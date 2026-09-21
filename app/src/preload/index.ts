@@ -15,7 +15,16 @@ const api: RendererApi = {
     setApiKey: (apiKey) => ipcRenderer.invoke(STEAM_CHANNELS.setApiKey, { apiKey }),
     clearApiKey: () => ipcRenderer.invoke(STEAM_CHANNELS.clearApiKey),
     getOwnedGames: () => ipcRenderer.invoke(STEAM_CHANNELS.getOwnedGames),
-    getCachedLibrary: () => ipcRenderer.invoke(STEAM_CHANNELS.getCachedLibrary)
+    getCachedLibrary: () => ipcRenderer.invoke(STEAM_CHANNELS.getCachedLibrary),
+    onCoversChanged: (callback) => {
+      // The event object is deliberately not passed on: it would hand the
+      // renderer a reference into Electron's IPC internals.
+      const listener = (): void => callback()
+      ipcRenderer.on(STEAM_CHANNELS.coversChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(STEAM_CHANNELS.coversChanged, listener)
+      }
+    }
   }
 }
 

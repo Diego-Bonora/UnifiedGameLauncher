@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Handlers are captured as registerSteamAuthIpc() runs, then invoked directly
 // by channel name — no real Electron process involved.
-const { handlers } = vi.hoisted(() => ({
-  handlers: new Map<string, (event: unknown, payload?: unknown) => Promise<unknown>>()
+const { handlers, windows } = vi.hoisted(() => ({
+  handlers: new Map<string, (event: unknown, payload?: unknown) => Promise<unknown>>(),
+  windows: [] as Array<{ isDestroyed: () => boolean; webContents: { send: (c: string) => void } }>
 }))
 
 vi.mock('electron', () => ({
+  BrowserWindow: { getAllWindows: () => windows },
   ipcMain: {
     handle: (channel: string, handler: (event: unknown, payload?: unknown) => Promise<unknown>) => {
       handlers.set(channel, handler)
@@ -74,9 +76,10 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   vi.mocked(withLocalCoverUrls).mockImplementation(async (games) => games)
-  vi.mocked(syncCovers).mockResolvedValue(undefined)
+  vi.mocked(syncCovers).mockResolvedValue(0)
   vi.mocked(clearCovers).mockResolvedValue(undefined)
   handlers.clear()
+  windows.length = 0
   registerSteamAuthIpc()
 })
 
@@ -111,7 +114,7 @@ describe('steam:getOwnedGames', () => {
     vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
     vi.mocked(setCachedSteamLibrary).mockResolvedValue(undefined)
     // Never settles: if the handler awaited it, this test would time out.
-    vi.mocked(syncCovers).mockReturnValue(new Promise(() => undefined))
+    vi.mocked(syncCovers).mockReturnValue(new Promise<number>(() => undefined))
 
     expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(live(GAMES))
   })
@@ -193,6 +196,108 @@ describe('steam:getOwnedGames when Steam answers with an empty library', () => {
     vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
     vi.mocked(getCachedSteamLibrary).mockResolvedValue(SAVED)
     vi.mocked(setCachedSteamLibrary).mockResolvedValue(undefined)
+
+    expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(live(GAMES))
+  })
+})
+
+describe('steam:getOwnedGames telling the window about new covers', () => {
+  function openWindow(destroyed = false): ReturnType<typeof vi.fn> {
+    const send = vi.fn()
+    windows.push({ isDestroyed: () => destroyed, webContents: { send } })
+    return send
+  }
+
+  function liveSetup(): void {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue(null)
+    vi.mocked(setCachedSteamLibrary).mockResolvedValue(undefined)
+  }
+
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+
+  it('notifies every open window once covers have been downloaded', async () => {
+    liveSetup()
+    vi.mocked(syncCovers).mockResolvedValue(3)
+    const first = openWindow()
+    const second = openWindow()
+
+    await invoke(STEAM_CHANNELS.getOwnedGames)
+    await flush()
+
+    expect(first).toHaveBeenCalledWith(STEAM_CHANNELS.coversChanged)
+    expect(second).toHaveBeenCalledWith(STEAM_CHANNELS.coversChanged)
+  })
+
+  it('stays quiet when nothing new was downloaded', async () => {
+    liveSetup()
+    vi.mocked(syncCovers).mockResolvedValue(0)
+    const send = openWindow()
+
+    await invoke(STEAM_CHANNELS.getOwnedGames)
+    await flush()
+
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('skips a window that has been destroyed', async () => {
+    liveSetup()
+    vi.mocked(syncCovers).mockResolvedValue(1)
+    const gone = openWindow(true)
+    const alive = openWindow()
+
+    await invoke(STEAM_CHANNELS.getOwnedGames)
+    await flush()
+
+    expect(gone).not.toHaveBeenCalled()
+    expect(alive).toHaveBeenCalledOnce()
+  })
+
+  it('does not let one failing window stop the others or reject', async () => {
+    liveSetup()
+    vi.mocked(syncCovers).mockResolvedValue(2)
+    // A window mid-teardown: not "destroyed" yet, but send() throws.
+    windows.push({
+      isDestroyed: () => false,
+      webContents: {
+        send: () => {
+          throw new Error('Object has been destroyed')
+        }
+      }
+    })
+    const healthy = openWindow()
+
+    await expect(invoke(STEAM_CHANNELS.getOwnedGames)).resolves.toEqual(live(GAMES))
+    await flush()
+
+    expect(healthy).toHaveBeenCalledWith(STEAM_CHANNELS.coversChanged)
+  })
+
+  it('copes with no open windows (closed while covers were downloading)', async () => {
+    liveSetup()
+    vi.mocked(syncCovers).mockResolvedValue(4)
+
+    await expect(invoke(STEAM_CHANNELS.getOwnedGames)).resolves.toEqual(live(GAMES))
+    await flush()
+  })
+
+  it('does not notify when the live refresh failed and no sync ran', async () => {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockRejectedValue(new SteamApiError('offline', 'x'))
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue(null)
+    const send = openWindow()
+
+    await invoke(STEAM_CHANNELS.getOwnedGames)
+    await flush()
+
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('does not hold up the library while covers download', async () => {
+    liveSetup()
+    vi.mocked(syncCovers).mockReturnValue(new Promise<number>(() => undefined))
+    openWindow()
 
     expect(await invoke(STEAM_CHANNELS.getOwnedGames)).toEqual(live(GAMES))
   })

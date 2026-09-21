@@ -14,8 +14,15 @@ export const STEAM_CHANNELS = {
   setApiKey: 'steam:setApiKey',
   clearApiKey: 'steam:clearApiKey',
   getOwnedGames: 'steam:getOwnedGames',
-  getCachedLibrary: 'steam:getCachedLibrary'
+  getCachedLibrary: 'steam:getCachedLibrary',
+  // Main -> renderer notice (no payload) that covers finished downloading.
+  coversChanged: 'steam:coversChanged'
 } as const
+
+// What a cover URL starts with when it points at a copy saved on disk (served
+// by main's app-cover:// handler). Main builds these; the renderer only checks
+// the prefix, so the two can't drift apart.
+export const COVER_URL_PREFIX = 'app-cover://covers/'
 
 export interface SteamInstalledGame {
   appId: string

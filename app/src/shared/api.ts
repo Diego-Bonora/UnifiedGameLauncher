@@ -23,5 +23,8 @@ export interface RendererApi {
     getOwnedGames: () => Promise<SteamLibraryResult>
     // null when nothing is saved for the connected account yet.
     getCachedLibrary: () => Promise<SteamCachedLibrary | null>
+    // Called when new cover images have been saved to disk, so the window can
+    // pick up the local copies. Returns a function that stops listening.
+    onCoversChanged: (callback: () => void) => () => void
   }
 }

@@ -9,6 +9,7 @@ import type {
 } from '@shared/ipc/steam-channels'
 import GameCoverArt from './GameCoverArt'
 import { libraryNotice, ONLINE_DEBOUNCE_MS, retryDelayMs } from './library-problems'
+import { mergeFreshCovers } from './library-view'
 
 type LoadState = 'loading' | 'loaded'
 
@@ -210,6 +211,25 @@ function App(): React.JSX.Element {
     }
   }, [requestRefresh])
 
+  // New covers finished downloading. Until now the grid was showing the remote
+  // URLs; re-read the library (main now returns local URLs for what is on
+  // disk) and swap just the cover URLs in, so the local copies are used this
+  // session instead of only after a restart.
+  useEffect(() => {
+    return window.api.steam.onCoversChanged(() => {
+      window.api.steam
+        .getCachedLibrary()
+        .then((cached) => {
+          if (cached === null) return
+          setCachedLibrary(cached)
+          setOwnedGamesResult((previous) => mergeFreshCovers(previous, cached))
+        })
+        .catch(() => {
+          // Covers are a nicety; the remote URLs keep working.
+        })
+    })
+  }, [])
+
   // Saved copy of the library, shown instantly while the live fetch above is
   // still running. Same steamId64 tagging and `ignore` guard as that effect.
   useEffect(() => {
@@ -255,8 +275,10 @@ function App(): React.JSX.Element {
 
   // While a problem is showing, keep trying on our own: the browser's online
   // event is unreliable (it can fire before the connection works, or never).
-  // Rescheduled whenever a new result arrives, so the delay follows the
-  // number of failures in a row.
+  // Keyed on the failure count, not on the result object: every failed refresh
+  // bumps it (so the timer is rescheduled with the next delay), while a cover
+  // swap replaces the object without being a new attempt and must not reset
+  // the backoff.
   useEffect(() => {
     if (!needsRetry) return
     const timer = setTimeout(() => {
@@ -264,7 +286,7 @@ function App(): React.JSX.Element {
       if (!refreshingRef.current) requestRefresh()
     }, retryDelayMs(failures))
     return () => clearTimeout(timer)
-  }, [needsRetry, failures, ownedGamesResult, requestRefresh])
+  }, [needsRetry, failures, requestRefresh])
 
   return (
     <main className="mx-auto flex h-full max-w-6xl flex-col gap-4 p-4">

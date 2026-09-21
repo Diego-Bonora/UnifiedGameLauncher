@@ -212,7 +212,7 @@ describe('syncCovers: downloading', () => {
       return JPEG
     })
 
-    await expect(syncCovers([game('10'), game('20')], deps)).resolves.toBeUndefined()
+    await expect(syncCovers([game('10'), game('20')], deps)).resolves.toBe(1)
 
     expect([...deps.written.keys()]).toEqual(['20.jpg'])
   })
@@ -223,7 +223,7 @@ describe('syncCovers: downloading', () => {
       throw new Error('EACCES')
     }
 
-    await expect(syncCovers([game('10')], deps)).resolves.toBeUndefined()
+    await expect(syncCovers([game('10')], deps)).resolves.toBe(0)
     expect(deps.fetchImage).not.toHaveBeenCalled()
   })
 
@@ -263,6 +263,39 @@ describe('syncCovers: downloading', () => {
     expect([...deps.written.keys()].sort()).toEqual(['10.jpg', '20.jpg'])
     // The second run saw 10.jpg already on disk and only fetched 20.
     expect(deps.fetchImage).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('syncCovers: how many were saved', () => {
+  it('reports the number of newly saved covers', async () => {
+    const deps = fakeDeps()
+    expect(await syncCovers([game('10'), game('20'), game('30')], deps)).toBe(3)
+  })
+
+  it('reports 0 when everything is already on disk', async () => {
+    const deps = fakeDeps(['10.jpg', '20.jpg'])
+    expect(await syncCovers([game('10'), game('20')], deps)).toBe(0)
+  })
+
+  it('does not count downloads that were rejected as not-an-image', async () => {
+    const deps = fakeDeps()
+    deps.fetchImage.mockImplementation(async (url) =>
+      url.includes('/10/') ? new Uint8Array(0) : JPEG
+    )
+    expect(await syncCovers([game('10'), game('20')], deps)).toBe(1)
+  })
+
+  it('does not count a cover whose write failed', async () => {
+    const deps = fakeDeps()
+    deps.writeFile = async () => {
+      throw new Error('disk full')
+    }
+    expect(await syncCovers([game('10')], deps)).toBe(0)
+  })
+
+  it('reports 0 when pruning is all that happened', async () => {
+    const deps = fakeDeps(['10.jpg', '99.png'])
+    expect(await syncCovers([game('10')], deps)).toBe(0)
   })
 })
 

@@ -1,7 +1,7 @@
 import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
-import type { SteamOwnedGame } from '@shared/ipc/steam-channels'
+import { COVER_URL_PREFIX, type SteamOwnedGame } from '@shared/ipc/steam-channels'
 import { isSteamCoverAssetUrl, runWithConcurrencyLimit } from '../stores/steam/library-cover-art'
 
 // Custom scheme the renderer loads cached covers through (see
@@ -138,19 +138,22 @@ export function findCoverFileName(appId: string, files: ReadonlySet<string>): st
 // going: a second call may carry games the first never saw (a new purchase),
 // and each run re-reads the folder, so a queued run just skips what the
 // previous one already saved.
-let queueTail: Promise<void> = Promise.resolve()
+let queueTail: Promise<unknown> = Promise.resolve()
 
 // clearCovers bumps this so runs that were queued BEFORE a disconnect don't
 // download the old account's covers afterwards.
 let clearGeneration = 0
 let activeAbort: AbortController | null = null
 
+// Resolves to how many covers were newly saved, so the caller can tell the
+// window when there is something new to show.
 async function runSync(
   games: SteamOwnedGame[],
   generation: number,
   deps: CoverCacheDeps
-): Promise<void> {
-  if (generation !== clearGeneration) return
+): Promise<number> {
+  if (generation !== clearGeneration) return 0
+  let downloaded = 0
   const controller = new AbortController()
   activeAbort = controller
   try {
@@ -159,7 +162,7 @@ async function runSync(
       files = await deps.listFiles()
     } catch (err) {
       console.warn('[steam] could not read the covers folder:', err)
-      return
+      return 0
     }
 
     // Prune first, but never against an empty library: an empty live result
@@ -199,6 +202,7 @@ async function runSync(
             // A disconnect may have landed while this was downloading.
             if (controller.signal.aborted) return
             await deps.writeFile(`${game.appId}.${extension}`, bytes)
+            downloaded++
           } catch (err) {
             if (controller.signal.aborted) return
             console.warn(`[steam] could not cache the cover for app ${game.appId}:`, err)
@@ -207,24 +211,27 @@ async function runSync(
       ]
     })
     await runWithConcurrencyLimit(tasks, MAX_CONCURRENT_DOWNLOADS)
+    return downloaded
   } finally {
     if (activeAbort === controller) activeAbort = null
   }
 }
 
 // Keeps the covers folder in step with the library: removes covers that no
-// longer belong, then downloads the missing ones. Never rejects: a cover that
-// can't be fetched just stays remote/placeholder, like the rest of this app's
-// "missing art degrades quietly" convention.
+// longer belong, then downloads the missing ones. Resolves to the number of
+// covers newly saved. Never rejects: a cover that can't be fetched just stays
+// remote/placeholder, like the rest of this app's "missing art degrades
+// quietly" convention.
 export function syncCovers(
   games: SteamOwnedGame[],
   deps: CoverCacheDeps = realDeps
-): Promise<void> {
+): Promise<number> {
   const generation = clearGeneration
   const run = queueTail.then(() => runSync(games, generation, deps))
   queueTail = run.catch(() => undefined)
   return run.catch((err: unknown) => {
     console.warn('[steam] cover sync failed:', err)
+    return 0
   })
 }
 
@@ -256,7 +263,7 @@ export async function withLocalCoverUrls(
   const files = new Set(await deps.listFiles())
   return games.map((game) =>
     findCoverFileName(game.appId, files) !== null
-      ? { ...game, coverUrl: `${COVER_SCHEME}://${COVER_HOST}/${game.appId}` }
+      ? { ...game, coverUrl: `${COVER_URL_PREFIX}${game.appId}` }
       : game
   )
 }
