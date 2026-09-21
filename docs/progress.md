@@ -3,15 +3,26 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestone 3 (library cache + offline mode) is done, committed (`cac3b0e`..`1749c6f`) and verified in the macOS dev app, including a forced-offline run. The Steam sign-in verification `.catch` fix is also done and committed (see the 2026-09-20 sign-in fix entry). Nothing is uncommitted. Windows installer testing for Milestones 2 and 3 is still outstanding.
+Milestone 4 stage 1 (Epic installed detection + launch, no login) is built and committed (steps 1–3). It was checked in the macOS dev app with a fixture folder of sample manifests, but never on a real Windows PC: the Epic launch URL is unverified. Milestones 2 and 3 are done and verified on macOS only. Nothing is uncommitted.
 
 ## In Progress
 Nothing active.
 
 ## Next Up
-Start Milestone 4 (Epic: installed detection + launch first, no login).
+Try Epic detection and launch on a real Windows PC (installer or dev build). If the launcher opens without starting the game, switch the URL to the `namespace:itemId:appName` form (the catalog ids are already carried). Then Milestone 4 stage 2: Epic login + owned library, built separately and allowed to fail (needs research first).
 
 ---
+
+## 2026-09-20 (Milestone 4, stage 1: Epic installed detection + launch)
+**Built:** 3 commits (`f75c4f2`, `dcb2d40`, and the step 3 commit), 274 Vitest tests (225 before).
+- Step 1, `main/stores/epic/`: `epic-manifest.ts` parses `Data/Manifests/*.item` into `game` / `skipped` / `invalid` (DLC, non-games and half-finished installs are skipped quietly; only broken files warn). `InstallLocation` must be a local drive path, titles are cleaned, ids limited to `[A-Za-z0-9_-]`. `epic-provider.ts` reads `%PROGRAMDATA%` with an injectable fs. `InstalledGame` gained optional `catalogNamespace` / `catalogItemId`.
+- Step 2, IPC: `shared/ipc/epic-channels.ts` (preload-safe) + `epic.ts` (zod), logic in `main/ipc/epic-handlers.ts` (no Electron import, fully tested), thin `epic.ts` wiring. Launch only accepts games detected right now and re-checks the URL against the allow-list. Expected failures come back as data (`notInstalled`, `launcherUnavailable`).
+- Step 3, renderer: `EpicInstalledSection` (own list, launch and message state), `EpicGameTile` (2:3 poster tile, the whole tile is the play button), `GameCoverArt` got an optional `placeholderLabel`, pure tested `epic-view.ts` and `epic-launch-messages.ts`.
+**Decisions:** Launch URL is `apps/<AppName>?action=launch&silent=true` from the project plan, unverified; catalog ids are carried but not used yet. Poster tiles now (not rows), since covers are coming; until then a tile shows the title on a placeholder. No visible Play button: the card is the button (user's call). After a launch is accepted the tiles pause for 5 s with a "Starting…" line, because the hand-off returns long before the game window appears. Epic messages live in the Epic section, not the shared Steam launch line. The list reloads on window focus and keeps the old list if a refresh fails.
+**Fixed by review (2 rounds per step 1 and 2, 1 for step 3):** non-games and engines warned as corrupt; UNC and relative install paths accepted; a rejected `openExternal` reached the renderer as a raw error; a failed detection on launch did too; a failed focus refresh wiped the list; no feedback after a successful launch; badge slid against the lifted cover; the error line wasn't announced to screen readers.
+**Verified (macOS dev, `PROGRAMDATA` pointed at a fixture):** 5 tiles for 7 manifests (a DLC and an engine skipped), sorted by title; clicking a tile showed the friendly "Could not open the Epic Games launcher" message while the raw macOS error stayed in the main-process log. Not seen in the window: hover lift, the 5 s pause, the "Starting…" line. Not tested on Windows.
+**Next:** Windows check of the launch URL, then stage 2 (login + owned library).
+**Blocked by:** nothing. Open items: Epic launch URL form unverified on Windows; Epic covers need stage 2; IPC handlers do no sender/frame check (Steam neither; one window today); Steam's `getLaunchUrl` doesn't encode its id (its IPC schema allows digits only); a sign-in cancelled mid-verification doesn't abort its Steam request; the M3 open items below still stand (`setApiKey` throws its message, stale list after disconnect, `deriveLibraryView` extraction, untested real cover-cache I/O, `fetch` ignores system proxy, Windows installer test of M2 + M3).
 
 ## 2026-09-20 (Steam sign-in verification fix)
 **Built:** `openid.ts` loopback callback is now an async `handleCallback`. A network failure, timeout or Steam 5xx while verifying resolves the sign-in as `{ failed: true }` and shows the failure page, instead of an unhandled rejection that hung until the 5-minute timeout. 3 new tests (225 total).

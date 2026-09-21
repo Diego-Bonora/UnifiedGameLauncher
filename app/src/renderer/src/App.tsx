@@ -7,6 +7,7 @@ import type {
   SteamLibraryProblem,
   SteamOwnedGame
 } from '@shared/ipc/steam-channels'
+import EpicInstalledSection from './EpicInstalledSection'
 import GameCoverArt from './GameCoverArt'
 import { libraryNotice, ONLINE_DEBOUNCE_MS, retryDelayMs } from './library-problems'
 import { mergeFreshCovers } from './library-view'
@@ -453,6 +454,8 @@ function App(): React.JSX.Element {
           ))}
         </ul>
       )}
+
+      <EpicInstalledSection />
     </main>
   )
 }
