@@ -7,7 +7,7 @@ function item(appName: string, extra: Record<string, unknown> = {}): string {
     AppName: appName,
     DisplayName: `Game ${appName}`,
     InstallLocation: `C:/Games/${appName}`,
-    MainGameAppName: appName,
+    MainGameAppName: '',
     AppCategories: ['games'],
     CatalogNamespace: 'ns',
     CatalogItemId: `id${appName}`,

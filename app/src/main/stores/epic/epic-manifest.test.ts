@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { parseEpicManifest, type EpicManifest, type EpicManifestResult } from './epic-manifest'
 
-// Shaped like a real Data/Manifests/*.item file: forward-slash paths, catalog
-// ids and the category list Epic writes for games.
+// Shaped like a real Data/Manifests/*.item file. Real base games have an EMPTY
+// MainGameAppName (not one equal to AppName), so that is what the default is.
 const base = {
   FormatVersion: 0,
   AppName: 'Sunflower',
@@ -11,7 +11,7 @@ const base = {
   LaunchExecutable: 'FortniteGame/Binaries/Win64/FortniteClient-Win64-Shipping.exe',
   CatalogNamespace: 'fn',
   CatalogItemId: '4fe75bbc5a674f4f9b356b5c90567da5',
-  MainGameAppName: 'Sunflower',
+  MainGameAppName: '',
   AppCategories: ['public', 'games', 'applications'],
   bIsIncompleteInstall: false
 }
@@ -25,6 +25,58 @@ function game(result: EpicManifestResult): EpicManifest {
   return result.manifest
 }
 
+// Captured from a real Windows PC (Epic launcher, 2026-09-21): the fields this
+// parser reads, with the values exactly as Epic wrote them. Note the backslash
+// path, the registered-trademark sign, the empty MainGameAppName, the GUID-like
+// AppName and the category list without "public".
+describe('parseEpicManifest on manifests from a real PC', () => {
+  const rocketLeague = {
+    AppName: 'Sugar',
+    DisplayName: 'Rocket League\u00ae',
+    InstallLocation: 'C:\\Program Files\\Epic Games\\rocketleague',
+    LaunchExecutable: 'Binaries/Win64/Launcher.exe',
+    CatalogNamespace: '9773aa1aa54f4f7b80e44bef04986cea',
+    CatalogItemId: '530145df28a24424923f5828cc9031a1',
+    MainGameAppName: '',
+    MainGameCatalogNamespace: '',
+    MainGameCatalogItemId: '',
+    AppCategories: ['public', 'games', 'applications'],
+    bIsIncompleteInstall: false
+  }
+  const bloons = {
+    AppName: '7786b355a13b47a6b3915335117cd0b2',
+    DisplayName: 'Bloons TD 6',
+    InstallLocation: 'C:\\Program Files\\Epic Games\\BloonsTD6',
+    LaunchExecutable: 'BloonsTD6.exe',
+    CatalogNamespace: '6a8dfa6e441e4f2f9048a98776c6077d',
+    CatalogItemId: '49c4bf5c6fd24259b87d0bcc96b6009f',
+    MainGameAppName: '',
+    AppCategories: ['games', 'applications'],
+    bIsIncompleteInstall: false
+  }
+
+  it('reads Rocket League, keeping the trademark sign and the backslash path', () => {
+    expect(game(parseEpicManifest(JSON.stringify(rocketLeague)))).toEqual({
+      appName: 'Sugar',
+      title: 'Rocket League\u00ae',
+      installLocation: 'C:\\Program Files\\Epic Games\\rocketleague',
+      catalogNamespace: '9773aa1aa54f4f7b80e44bef04986cea',
+      catalogItemId: '530145df28a24424923f5828cc9031a1'
+    })
+  })
+
+  it('reads Bloons TD 6, whose AppName is an opaque id and whose categories lack "public"', () => {
+    const manifest = game(parseEpicManifest(JSON.stringify(bloons)))
+    expect(manifest.appName).toBe('7786b355a13b47a6b3915335117cd0b2')
+    expect(manifest.title).toBe('Bloons TD 6')
+  })
+
+  it('still skips a manifest that names a different main game (DLC)', () => {
+    const dlc = { ...rocketLeague, AppName: 'SugarDlc', MainGameAppName: 'Sugar' }
+    expect(parseEpicManifest(JSON.stringify(dlc)).kind).toBe('skipped')
+  })
+})
+
 describe('parseEpicManifest', () => {
   it('extracts a real-shaped manifest and normalizes the install path', () => {
     expect(game(parse())).toEqual({
@@ -34,6 +86,11 @@ describe('parseEpicManifest', () => {
       catalogNamespace: 'fn',
       catalogItemId: '4fe75bbc5a674f4f9b356b5c90567da5'
     })
+  })
+
+  it('accepts a MainGameAppName equal to AppName as well as an empty one', () => {
+    expect(parse({ MainGameAppName: 'Sunflower' }).kind).toBe('game')
+    expect(parse({ MainGameAppName: '' }).kind).toBe('game')
   })
 
   it('accepts a manifest without MainGameAppName, AppCategories or catalog ids', () => {
