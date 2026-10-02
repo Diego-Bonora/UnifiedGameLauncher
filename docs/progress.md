@@ -3,15 +3,23 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestone 4 stage 1 (Epic installed detection + launch, no login) is done and committed; on 2026-09-21 the launch URL and manifest shape were confirmed by hand on one real Windows 11 PC. Stage 2 (Epic login, owned library, covers) is researched but undecided. The app itself has not run on Windows: Milestones 2–4 are verified on macOS only. Code is committed locally (5 commits, `07344ee`..`e018d9a`) and not yet pushed.
+Milestone 4 is done on macOS: installed Epic games launch and show SteamGridDB posters with the user's own key. No Epic login or Epic owned library (Epic's terms, 2026-10-02). M2–M4 are verified on macOS only, never on Windows. 4 local commits today (`00d2c85`..`1ce9e66`), not pushed; 432 tests.
 
 ## In Progress
 Nothing active.
 
 ## Next Up
-Read Epic's EULA (it couldn't be fetched), then decide stage 2: login + library + covers together, or leave Epic on placeholders (SteamGridDB covers is an untested alternative). After the push, run the CI "Build installer" and test Milestones 2–4 on the Windows PC.
+Push, run CI "Build installer", test M2–M4 on the Windows PC. Then Milestone 5.
 
 ---
+
+## 2026-10-02 (Epic covers from SteamGridDB, replacing Epic login)
+**Decided:** Epic's Store EULA (2025-01-15) and ToS (2026-09-10) authorize no third-party clients; a library login means acting as Epic's launcher (EULA §2(c),(e)) and risks the user's account. So: no Epic login, covers from SteamGridDB with a user key, no owned-not-installed games, placeholder when no match (no title search), focus retries only after a failed sync. Spec: `docs/features/epic-covers.md`.
+**Verified first (real requests):** `/grids/egs/{AppName}` (catalog ids 404); Bloons TD 6 linked to Steam only, so no cover; images on `cdn2.steamgriddb.com`; key = 32 hex; one request per game.
+**Built:** Step 2 `main/library/` (`cover-files.ts` shared out of `cover-cache.ts`, `covers-epic/`, `steamgriddb.ts`, `epic-cover-state.ts`, `epic-cover-cache.ts`, `app-cover://epic/<AppName>`); Step 3 IPC (`epic-cover-handlers.ts`, `notify-windows.ts`, `coverUrl`); Step 4 renderer (`EpicCoverKeyForm.tsx`, `epic-cover-messages.ts`, upgrade-only covers, `GameCoverArt` retry token). 432 tests (278 before).
+**Fixed by review:** 8 rounds before commit; four fixes needed a follow-up fix (see lessons.md).
+**Verified (macOS dev, fixture `PROGRAMDATA`, real key):** Rocket League poster (820,839-byte PNG), Bloons placeholder + no-cover mark, form collapses, invalid key message. Not verified: failed-image retry; Windows.
+**Blocked by:** nothing. Open: user to regenerate the SteamGridDB key (it was in the chat); `getSecret` reads a locked `secrets.json` as "no key" (Steam too); always-failing cover flashes per focus; `setApiKey` throws its message; no IPC sender check; Steam `getLaunchUrl` doesn't encode its id; cancelled sign-in doesn't abort its request; M3 open items (archive).
 
 ## 2026-09-21 (Epic Windows check + stage 2 research)
 **Windows check (by hand, one PC, Windows 11 build 26200, launcher under `C:\Program Files\Epic Games\`):** `com.epicgames.launcher://apps/<AppName>?action=launch&silent=true` started Rocket League (AppName `Sugar`) from a cold launcher, so the plain `AppName` URL form is confirmed and the longer `namespace:itemId:appName` form wasn't needed. Only one game was launched; Bloons TD 6 (opaque GUID AppName) was not.
@@ -30,10 +38,3 @@ Read Epic's EULA (it couldn't be fetched), then decide stage 2: login + library 
 **Verified (macOS dev, `PROGRAMDATA` pointed at a fixture):** 5 tiles for 7 manifests (a DLC and an engine skipped), sorted by title; clicking a tile showed the friendly "Could not open the Epic Games launcher" message while the raw macOS error stayed in the main-process log. Not seen in the window: hover lift, the 5 s pause, the "Starting…" line. Not tested on Windows.
 **Next:** Windows check of the launch URL, then stage 2 (login + owned library).
 **Blocked by:** nothing. Open items: Epic covers need stage 2; IPC handlers do no sender/frame check (Steam neither; one window today); Steam's `getLaunchUrl` doesn't encode its id (its IPC schema allows digits only); a sign-in cancelled mid-verification doesn't abort its Steam request; the Milestone 3 open items (entry now in the archive) still stand (`setApiKey` throws its message, stale list after disconnect, `deriveLibraryView` extraction, untested real cover-cache I/O, `fetch` ignores system proxy, Windows installer test of M2 + M3).
-
-## 2026-09-20 (Steam sign-in verification fix)
-**Built:** `openid.ts` loopback callback is now an async `handleCallback`. A network failure, timeout or Steam 5xx while verifying resolves the sign-in as `{ failed: true }` and shows the failure page, instead of an unhandled rejection that hung until the 5-minute timeout. 3 new tests (225 total).
-**Decisions:** `settle()` runs before the response is written (write in try/catch); the tab shows "signed in" only if this flow still accepted the result; a per-flow `handled` flag verifies only the first callback (later ones get 409); the verification `fetch` has a 15 s timeout and throws on non-2xx. Offline and rejected login still share one message; a `reason: 'network'` variant is deferred to Epic's login (Milestone 4).
-**Fixed by review:** two `/review` passes. Round 1 found the write-before-settle hang, wrong page after cancel, double-callback failure, no timeout, weak test. Round 2 found nothing.
-**Not done (optional):** a flow cancelled mid-verification does not abort its Steam request (result is discarded).
-**Next:** Milestone 4.

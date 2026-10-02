@@ -80,3 +80,10 @@
 **Verified (macOS dev, real account):** relaunch shows the library instantly; forced-offline run (dead proxy) showed the pill, left saved data untouched, one retry per 60 s at steady state; with `covers/` emptied the grid went from 94 remote covers at +1 s to 94 local at +3 s; Reconnect Steam works. Not tested on the Windows installer.
 **Next:** Milestone 4 (the sign-in `.catch` fix was done afterwards).
 **Blocked by:** nothing. Open items: `setApiKey` still throws its message (Electron prefix); the renderer keeps the old list in memory after disconnect (no Disconnect button yet); `deriveLibraryView` extraction from `App.tsx`; real `fetchImage`/`writeFile`/`deleteFile` in `cover-cache.ts` untested; global `fetch` ignores system proxy settings; Windows installer test of M2 + M3.
+
+## 2026-09-20 (Steam sign-in verification fix)
+**Built:** `openid.ts` loopback callback is now an async `handleCallback`. A network failure, timeout or Steam 5xx while verifying resolves the sign-in as `{ failed: true }` and shows the failure page, instead of an unhandled rejection that hung until the 5-minute timeout. 3 new tests (225 total).
+**Decisions:** `settle()` runs before the response is written (write in try/catch); the tab shows "signed in" only if this flow still accepted the result; a per-flow `handled` flag verifies only the first callback (later ones get 409); the verification `fetch` has a 15 s timeout and throws on non-2xx. Offline and rejected login still share one message; a `reason: 'network'` variant is deferred to Epic's login (Milestone 4).
+**Fixed by review:** two `/review` passes. Round 1 found the write-before-settle hang, wrong page after cancel, double-callback failure, no timeout, weak test. Round 2 found nothing.
+**Not done (optional):** a flow cancelled mid-verification does not abort its Steam request (result is discarded).
+**Next:** Milestone 4.
