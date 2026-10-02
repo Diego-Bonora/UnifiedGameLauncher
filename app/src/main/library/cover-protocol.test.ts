@@ -8,9 +8,15 @@ vi.mock('electron', () => ({
 
 import { handleCoverRequest, type CoverProtocolDeps } from './cover-protocol'
 
-function fakeDeps(files: string[], contents = 'image-bytes'): CoverProtocolDeps {
+// Each store has its own folder; Steam's files are given as plain names,
+// Epic's under the `epic` key.
+function fakeDeps(
+  files: string[],
+  contents = 'image-bytes',
+  epicFiles: string[] = []
+): CoverProtocolDeps {
   return {
-    listFiles: async () => files,
+    listFiles: async (store) => (store === 'epic' ? epicFiles : files),
     readFile: vi.fn(async () => new Response(contents, { status: 200 }))
   }
 }
@@ -27,7 +33,24 @@ describe('handleCoverRequest', () => {
 
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('image-bytes')
-    expect(deps.readFile).toHaveBeenCalledWith('10.jpg')
+    expect(deps.readFile).toHaveBeenCalledWith('steam', '10.jpg')
+  })
+
+  it('serves an Epic cover from the Epic folder', async () => {
+    const deps = fakeDeps([], 'epic-bytes', ['Sugar.png'])
+
+    const response = await handleCoverRequest('app-cover://epic/Sugar', deps)
+
+    expect(response.status).toBe(200)
+    expect(deps.readFile).toHaveBeenCalledWith('epic', 'Sugar.png')
+  })
+
+  it('never serves a Steam cover through an Epic URL, or the other way round', async () => {
+    const deps = fakeDeps(['10.jpg'], 'image-bytes', ['Sugar.png'])
+
+    expect((await handleCoverRequest('app-cover://epic/10', deps)).status).toBe(404)
+    expect((await handleCoverRequest('app-cover://covers/Sugar', deps)).status).toBe(404)
+    expect(deps.readFile).not.toHaveBeenCalled()
   })
 
   it('returns 404 for a cover that is not cached', async () => {
@@ -43,6 +66,8 @@ describe('handleCoverRequest', () => {
     'app-cover://other/10',
     'app-cover://covers/../secret',
     'app-cover://covers/10.jpg',
+    'app-cover://epic/Sugar.png',
+    'app-cover://epic/..%2Fcovers%2F10',
     'not a url'
   ])('returns 404 without reading any file for %s', async (url) => {
     const deps = fakeDeps(['10.jpg'])

@@ -1,16 +1,24 @@
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { net, protocol } from 'electron'
-import { COVER_SCHEME, coverFileNameForRequest, coversDirPath, listCoverFiles } from './cover-cache'
+import {
+  COVER_SCHEME,
+  coverDirPath,
+  findCoverFileName,
+  listCoverFilesIn,
+  parseCoverRequest,
+  type CoverStore
+} from './cover-files'
 
 export interface CoverProtocolDeps {
-  listFiles: () => Promise<string[]>
-  readFile: (fileName: string) => Promise<Response>
+  listFiles: (store: CoverStore) => Promise<string[]>
+  readFile: (store: CoverStore, fileName: string) => Promise<Response>
 }
 
 const realDeps: CoverProtocolDeps = {
-  listFiles: listCoverFiles,
-  readFile: (fileName) => net.fetch(pathToFileURL(join(coversDirPath(), fileName)).toString())
+  listFiles: listCoverFilesIn,
+  readFile: (store, fileName) =>
+    net.fetch(pathToFileURL(join(coverDirPath(store), fileName)).toString())
 }
 
 // Must run before the app is ready (Electron rule for custom schemes).
@@ -23,7 +31,8 @@ export function registerCoverScheme(): void {
   ])
 }
 
-// Read-only: serves a cached cover for exactly "app-cover://covers/<appId>".
+// Read-only: serves a cached cover for exactly "app-cover://covers/<appId>"
+// (Steam) or "app-cover://epic/<AppName>" (Epic), each from its own folder.
 // Everything else is a plain 404 — the renderer's <img> then falls back to
 // its placeholder. That includes a file that disappears between the folder
 // listing and the read (antivirus, the user clearing the folder): the handler
@@ -33,11 +42,13 @@ export async function handleCoverRequest(
   deps: CoverProtocolDeps = realDeps
 ): Promise<Response> {
   try {
-    const fileName = coverFileNameForRequest(requestUrl, new Set(await deps.listFiles()))
+    const request = parseCoverRequest(requestUrl)
+    if (request === null) return new Response(null, { status: 404 })
+    const fileName = findCoverFileName(request.id, new Set(await deps.listFiles(request.store)))
     if (fileName === null) return new Response(null, { status: 404 })
-    return await deps.readFile(fileName)
+    return await deps.readFile(request.store, fileName)
   } catch (err) {
-    console.warn('[steam] could not serve a cached cover:', err)
+    console.warn('[covers] could not serve a cached cover:', err)
     return new Response(null, { status: 404 })
   }
 }

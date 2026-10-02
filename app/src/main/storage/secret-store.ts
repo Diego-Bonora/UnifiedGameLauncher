@@ -2,9 +2,9 @@ import { readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
 
-// Generic key -> encrypted-string store, not a Steam-specific one: the
-// Steam Web API key is the first secret, but Epic's tokens (Milestone 4)
-// will need the same encrypted-file treatment. Callers own their own key
+// Generic key -> encrypted-string store, not a Steam-specific one: it holds
+// the Steam Web API key and the SteamGridDB key (Epic covers), and any future
+// store's tokens would get the same encrypted-file treatment. Callers own their own key
 // names (see STEAM_API_KEY_SECRET in ipc/steam-auth.ts); this file only
 // knows how to encrypt, store and retrieve a string by key.
 export interface SecretStoreDeps {
@@ -60,8 +60,8 @@ async function readRawSecretsFile(deps: SecretStoreDeps): Promise<Record<string,
   }
 }
 
-// Same reasoning as connection-store.ts's write queue: this file will hold
-// more than one secret (Steam's key today, Epic's tokens later), so every
+// Same reasoning as connection-store.ts's write queue: this file holds more
+// than one secret (the Steam and SteamGridDB keys), so every
 // read-modify-write is serialized to stop two concurrent writers from
 // clobbering each other via a stale read or a colliding temp-file path.
 let writeQueue: Promise<unknown> = Promise.resolve()

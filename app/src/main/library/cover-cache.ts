@@ -1,26 +1,17 @@
-import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { app } from 'electron'
 import { COVER_URL_PREFIX, type SteamOwnedGame } from '@shared/ipc/steam-channels'
 import { isSteamCoverAssetUrl, runWithConcurrencyLimit } from '../stores/steam/library-cover-art'
+import {
+  COVER_EXTENSIONS,
+  deleteCoverFile,
+  detectImageExtension,
+  fetchCoverBytes,
+  findCoverFileName,
+  listCoverFilesIn,
+  writeCoverFile
+} from './cover-files'
 
-// Custom scheme the renderer loads cached covers through (see
-// cover-protocol.ts). Lives here, not there, so the URL builder and the
-// request parser below sit next to each other.
-export const COVER_SCHEME = 'app-cover'
-const COVER_HOST = 'covers'
-
-// The only file extensions a cached cover can have. Which one a downloaded
-// image gets is decided by its own first bytes (detectImageExtension), never
-// by the URL or the Content-Type header, so a hostile or broken response
-// can't choose its own file name or type.
-const COVER_EXTENSIONS = ['jpg', 'png', 'webp'] as const
-type CoverExtension = (typeof COVER_EXTENSIONS)[number]
-
-// Real covers are well under 1 MB; this stops a bad response from filling the
-// disk or memory. Enforced while streaming, not after buffering.
-const MAX_COVER_BYTES = 5 * 1024 * 1024
-const FETCH_TIMEOUT_MS = 15_000
+// Steam's cover sync. The file checks, folder and URL rules it relies on are
+// shared with Epic and live in cover-files.ts.
 
 // Same reasoning as library-cover-art.ts: cap concurrency against Steam's
 // edge rather than firing one request per game at once.
@@ -35,101 +26,11 @@ export interface CoverCacheDeps {
   deleteFile: (fileName: string) => Promise<void>
 }
 
-export function coversDirPath(): string {
-  return join(app.getPath('userData'), 'covers')
-}
-
-export async function listCoverFiles(): Promise<string[]> {
-  try {
-    return await readdir(coversDirPath())
-  } catch {
-    // Folder not created yet (first run) means "no covers cached".
-    return []
-  }
-}
-
-// Reads a response body but gives up as soon as it passes `limit` bytes.
-// `arrayBuffer()` would buffer everything first, and a chunked or compressed
-// response can carry more than its Content-Length suggests.
-export async function readBodyWithLimit(
-  body: ReadableStream<Uint8Array> | null,
-  limit: number
-): Promise<Uint8Array> {
-  if (body === null) return new Uint8Array(0)
-  const reader = body.getReader()
-  const chunks: Uint8Array[] = []
-  let total = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    total += value.length
-    if (total > limit) {
-      await reader.cancel().catch(() => undefined)
-      throw new Error('cover is larger than the size limit')
-    }
-    chunks.push(value)
-  }
-  const bytes = new Uint8Array(total)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.length
-  }
-  return bytes
-}
-
-// Identifies the image by its magic bytes. An empty body, an HTML error page
-// that came back as "200 OK", or any other non-image returns null and is never
-// written, so a bad download can't leave a file that hides the remote URL.
-export function detectImageExtension(bytes: Uint8Array): CoverExtension | null {
-  const startsWith = (signature: number[], at = 0): boolean =>
-    bytes.length >= at + signature.length && signature.every((b, i) => bytes[at + i] === b)
-
-  if (startsWith([0xff, 0xd8, 0xff])) return 'jpg'
-  if (startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'png'
-  // WebP is a RIFF container: "RIFF" <size> "WEBP".
-  if (startsWith([0x52, 0x49, 0x46, 0x46]) && startsWith([0x57, 0x45, 0x42, 0x50], 8)) return 'webp'
-  return null
-}
-
 const realDeps: CoverCacheDeps = {
-  listFiles: listCoverFiles,
-  fetchImage: async (url, signal) => {
-    // `redirect: 'error'`: the URL was checked against the allow-list, so a
-    // redirect to some other host must fail instead of being followed.
-    const response = await fetch(url, {
-      signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]),
-      redirect: 'error'
-    })
-    if (!response.ok) throw new Error(`cover download responded with ${response.status}`)
-    // A cheap early exit only; the streaming limit below is the real check.
-    if (Number(response.headers.get('content-length')) > MAX_COVER_BYTES) {
-      throw new Error('cover is larger than the size limit')
-    }
-    return readBodyWithLimit(response.body, MAX_COVER_BYTES)
-  },
-  writeFile: async (fileName, bytes) => {
-    const dir = coversDirPath()
-    await mkdir(dir, { recursive: true })
-    // Temp file then rename, so the protocol handler never serves a
-    // half-written image.
-    const tempPath = join(dir, `${fileName}.tmp`)
-    await writeFile(tempPath, bytes)
-    await rename(tempPath, join(dir, fileName))
-  },
-  // Only ever called with names that came from listFiles(), never from a
-  // request or a response.
-  deleteFile: (fileName) => rm(join(coversDirPath(), fileName), { force: true })
-}
-
-// Exact-name match against the known extensions, so leftovers like
-// "123.jpg.tmp" are never treated as a cached cover.
-export function findCoverFileName(appId: string, files: ReadonlySet<string>): string | null {
-  for (const extension of COVER_EXTENSIONS) {
-    const name = `${appId}.${extension}`
-    if (files.has(name)) return name
-  }
-  return null
+  listFiles: () => listCoverFilesIn('steam'),
+  fetchImage: fetchCoverBytes,
+  writeFile: (fileName, bytes) => writeCoverFile('steam', fileName, bytes),
+  deleteFile: (fileName) => deleteCoverFile('steam', fileName)
 }
 
 // --- Syncing -------------------------------------------------------------
@@ -266,24 +167,4 @@ export async function withLocalCoverUrls(
       ? { ...game, coverUrl: `${COVER_URL_PREFIX}${game.appId}` }
       : game
   )
-}
-
-// Turns a request URL into the file to serve, or null for anything that
-// isn't exactly "app-cover://covers/<digits>" naming a cached cover. The
-// file name is rebuilt from the digits and the fixed extension list, never
-// taken from the request, so there is no path to traverse.
-export function coverFileNameForRequest(
-  requestUrl: string,
-  files: ReadonlySet<string>
-): string | null {
-  let url: URL
-  try {
-    url = new URL(requestUrl)
-  } catch {
-    return null
-  }
-  if (url.protocol !== `${COVER_SCHEME}:` || url.hostname !== COVER_HOST) return null
-  const match = /^\/(\d+)$/.exec(url.pathname)
-  if (match === null || match[1] === undefined) return null
-  return findCoverFileName(match[1], files)
 }
