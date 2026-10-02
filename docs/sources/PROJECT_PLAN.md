@@ -238,7 +238,7 @@ The app must keep working without internet.
 | 1. Steam installed games | Detect installed Steam games and launch them (no login needed) |
 | 2. Steam library | Steam sign-in + user API key, full owned library, cover art |
 | 3. Library cache + offline mode | Save library locally, load instantly, work without internet |
-| 4. Epic Games | Detect and launch installed games, then add login + owned library |
+| 4. Epic Games | Detect and launch installed games. Login + owned library dropped on 2026-10-02 (Epic's terms); covers via SteamGridDB instead, see docs/features/epic-covers.md |
 | 5. Other launchers | GOG, Ubisoft, Battle.net, EA: detect and launch installed games |
 | 6. Features | Manual games, search, filters, favorites, sort by store |
 | 7. Release | Polish, privacy policy in the app, GitHub release, optional auto-updates |
@@ -301,7 +301,7 @@ All data is stored only on your computer, in the app's data folder (`%APPDATA%\[
 The app connects directly from your computer to:
 
 - The game stores you connect (to get your library)
-- Image services (to download cover art)
+- Image services (to download cover art): Steam's image servers, and SteamGridDB for Epic games if you add a SteamGridDB key (it receives your key and the Epic ids of your installed games)
 - GitHub (to check for updates, if enabled)
 
 These services have their own privacy policies.
