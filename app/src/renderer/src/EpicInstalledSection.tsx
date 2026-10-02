@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { EpicInstalledGame } from '@shared/ipc/epic-channels'
+import type { EpicCoverStatus, EpicInstalledGame } from '@shared/ipc/epic-channels'
+import EpicCoverKeyForm from './EpicCoverKeyForm'
 import EpicGameTile from './EpicGameTile'
 import { feedbackForLaunch, nextEpicGames, type LaunchOutcome } from './epic-view'
 
@@ -23,9 +24,17 @@ function EpicInstalledSection(): React.JSX.Element {
   const [games, setGames] = useState<EpicInstalledGame[]>([])
   const [launchingAppName, setLaunchingAppName] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<Feedback | null>(null)
+  // null until the first read; the key form stays hidden until then.
+  const [coverStatus, setCoverStatus] = useState<EpicCoverStatus | null>(null)
+  // Changes on every successful list read. A cover that failed to load (a
+  // file briefly locked by antivirus) gets another try then: Epic cover URLs
+  // never change, so without this a failed image would stay a placeholder
+  // all session.
+  const [coverRetryToken, setCoverRetryToken] = useState(0)
   // Only the newest read may update the list: focus can fire a new one while
   // an older one is still running.
   const latestReadRef = useRef(0)
+  const latestStatusReadRef = useRef(0)
   const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const loadGames = useCallback(() => {
@@ -34,6 +43,7 @@ function EpicInstalledSection(): React.JSX.Element {
       if (read !== latestReadRef.current) return
       setGames((previous) => nextEpicGames(previous, result))
       setState('loaded')
+      if (result !== 'failed') setCoverRetryToken((token) => token + 1)
     }
     window.api.epic
       .getInstalledGames()
@@ -43,21 +53,55 @@ function EpicInstalledSection(): React.JSX.Element {
       .catch(() => apply('failed'))
   }, [])
 
+  const loadCoverStatus = useCallback(() => {
+    const read = ++latestStatusReadRef.current
+    window.api.epic
+      .getCoverStatus()
+      .then((status) => {
+        if (read === latestStatusReadRef.current) setCoverStatus(status)
+      })
+      // Keep whatever was shown; the next focus or notice reads it again.
+      .catch(() => undefined)
+  }, [])
+
+  // A key save or removal answers with the new status directly. Bumping the
+  // read counter makes an older status read still in flight lose.
+  const applyCoverStatus = useCallback((status: EpicCoverStatus) => {
+    latestStatusReadRef.current++
+    setCoverStatus(status)
+  }, [])
+
+  // Main says new covers are on disk or the cover status changed: re-read
+  // both. Covers arrive in the background after a key is saved or a game is
+  // installed, so this is how tiles change from placeholder to poster.
+  useEffect(
+    () =>
+      window.api.epic.onCoversChanged(() => {
+        loadGames()
+        loadCoverStatus()
+      }),
+    [loadGames, loadCoverStatus]
+  )
+
   useEffect(() => {
     loadGames()
+    loadCoverStatus()
     // A game installed or removed in Epic's launcher shows up when the user
     // comes back to this window. The read is a handful of small files. Coming
     // back also clears an old problem message: it may no longer be true.
     const handleFocus = (): void => {
       setFeedback((current) => (current?.tone === 'danger' ? null : current))
       loadGames()
+      // Also the retry for a status read that failed: with no key saved, main
+      // never sends a notice, so focus is the only other chance.
+      loadCoverStatus()
     }
     window.addEventListener('focus', handleFocus)
     return () => {
       window.removeEventListener('focus', handleFocus)
       clearTimeout(cooldownTimerRef.current)
     }
-  }, [loadGames])
+  }, [loadGames, loadCoverStatus])
 
   const finishLaunch = (game: EpicInstalledGame, outcome: LaunchOutcome): void => {
     const result = feedbackForLaunch(game.title, outcome)
@@ -101,6 +145,10 @@ function EpicInstalledSection(): React.JSX.Element {
           {feedback.message}
         </p>
       )}
+      {/* A key only matters with Epic games installed, or to remove one. */}
+      {state === 'loaded' && coverStatus !== null && (games.length > 0 || coverStatus.hasKey) && (
+        <EpicCoverKeyForm status={coverStatus} onStatusChange={applyCoverStatus} />
+      )}
       {state === 'loading' && (
         <div
           className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4"
@@ -120,7 +168,8 @@ function EpicInstalledSection(): React.JSX.Element {
             <li key={game.appName} className="min-w-0">
               <EpicGameTile
                 title={game.title}
-                coverUrl={null}
+                coverUrl={game.coverUrl}
+                coverRetryToken={coverRetryToken}
                 busy={launchingAppName !== null}
                 launching={launchingAppName === game.appName}
                 onPlay={() => handlePlay(game)}

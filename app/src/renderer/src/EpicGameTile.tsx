@@ -2,10 +2,11 @@ import GameCoverArt from './GameCoverArt'
 
 interface EpicGameTileProps {
   title: string
-  // Epic has no cover art yet (that needs the owned-library stage, which
-  // needs a login). The prop is here so tiles don't change shape when it
-  // arrives: pass the URL instead of null.
+  // A cached SteamGridDB poster (app-cover://epic/...), or null to show the
+  // title on a placeholder.
   coverUrl: string | null
+  // See GameCoverArt: a new value gives a failed cover another try.
+  coverRetryToken: number
   // Some launch is in progress: every tile pauses, not just the one clicked.
   busy: boolean
   // This tile is the one being launched.
@@ -23,6 +24,7 @@ interface EpicGameTileProps {
 function EpicGameTile({
   title,
   coverUrl,
+  coverRetryToken,
   busy,
   launching,
   onPlay
@@ -43,7 +45,7 @@ function EpicGameTile({
       className={`group flex w-full min-w-0 flex-col gap-2 text-left focus-visible:outline-none ${pausedClasses}`}
     >
       <div className="relative">
-        <GameCoverArt coverUrl={coverUrl} placeholderLabel={title} />
+        <GameCoverArt coverUrl={coverUrl} placeholderLabel={title} retryToken={coverRetryToken} />
         {/* Decorative: the button's own label says what it does. Lifts with the
             cover (same distance and timing) so it stays put on the poster. */}
         <span

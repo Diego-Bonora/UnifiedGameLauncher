@@ -66,3 +66,33 @@ describe('feedbackForLaunch', () => {
     expect(feedback.refreshList).toBe(false)
   })
 })
+
+describe('nextEpicGames: covers only upgrade', () => {
+  const withCover = (title: string): EpicInstalledGame => ({
+    ...game(title),
+    coverUrl: `app-cover://epic/${title}`
+  })
+
+  it('shows a cover as soon as a read has one', () => {
+    expect(nextEpicGames([game('Alpha')], [withCover('Alpha')])[0]?.coverUrl).toBe(
+      'app-cover://epic/Alpha'
+    )
+  })
+
+  it('keeps a shown cover when a later read comes back without it', () => {
+    expect(nextEpicGames([withCover('Alpha')], [game('Alpha')])[0]?.coverUrl).toBe(
+      'app-cover://epic/Alpha'
+    )
+  })
+
+  it('does not give a cover to a different game', () => {
+    expect(nextEpicGames([withCover('Alpha')], [game('Beta')])[0]?.coverUrl).toBeNull()
+  })
+
+  it('does not mutate the list it was given', () => {
+    const previous = [withCover('Alpha')]
+    const read = [game('Alpha')]
+    nextEpicGames(previous, read)
+    expect(read[0]?.coverUrl).toBeNull()
+  })
+})

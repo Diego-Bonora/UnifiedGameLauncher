@@ -7,18 +7,29 @@ interface GameCoverArtProps {
   // cover art isn't available yet, where the title is the only way to tell
   // them apart. Without it the placeholder stays a plain block.
   placeholderLabel?: string
+  // A failure only counts for the token it happened under. Epic passes a
+  // token that changes on every list read, so a cover whose URL never changes
+  // can still recover from one failed load. Steam passes none; its failed URL
+  // is replaced by a new one (remote to local) instead.
+  retryToken?: number
 }
 
 // coverUrl is already resolved (main looked it up via Steam's store-browse
 // API — see main/stores/steam/library-cover-art.ts) — this component just
 // renders it, or a placeholder when there is none or it fails to load.
-function GameCoverArt({ coverUrl, placeholderLabel }: GameCoverArtProps): React.JSX.Element {
+function GameCoverArt({
+  coverUrl,
+  placeholderLabel,
+  retryToken
+}: GameCoverArtProps): React.JSX.Element {
   // The URL that failed, not just "something failed": when the cover later
   // changes (a remote URL that failed offline being replaced by the local copy
-  // once it is downloaded), the new URL must get its own chance.
-  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  // once it is downloaded), the new URL must get its own chance. Same for a
+  // new retry token.
+  const [failed, setFailed] = useState<{ url: string; token: number | undefined } | null>(null)
+  const hasFailed = failed !== null && failed.url === coverUrl && failed.token === retryToken
 
-  if (coverUrl === null || failedUrl === coverUrl) {
+  if (coverUrl === null || hasFailed) {
     if (placeholderLabel === undefined) {
       return <div className="aspect-[2/3] w-full rounded-card bg-surface-2" />
     }
@@ -37,7 +48,7 @@ function GameCoverArt({ coverUrl, placeholderLabel }: GameCoverArtProps): React.
       alt=""
       loading="lazy"
       className="aspect-[2/3] w-full rounded-card bg-surface-2 object-cover ring-1 ring-border transition-transform duration-150 hover:-translate-y-1 hover:ring-2 hover:ring-accent group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-accent group-focus-visible:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-      onError={() => setFailedUrl(coverUrl)}
+      onError={() => setFailed({ url: coverUrl, token: retryToken })}
     />
   )
 }
