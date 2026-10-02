@@ -29,7 +29,18 @@ const api: RendererApi = {
   },
   epic: {
     getInstalledGames: () => ipcRenderer.invoke(EPIC_CHANNELS.getInstalledGames),
-    launch: (appName) => ipcRenderer.invoke(EPIC_CHANNELS.launch, { appName })
+    launch: (appName) => ipcRenderer.invoke(EPIC_CHANNELS.launch, { appName }),
+    getCoverStatus: () => ipcRenderer.invoke(EPIC_CHANNELS.getCoverStatus),
+    setCoverKey: (apiKey) => ipcRenderer.invoke(EPIC_CHANNELS.setCoverKey, { apiKey }),
+    clearCoverKey: () => ipcRenderer.invoke(EPIC_CHANNELS.clearCoverKey),
+    onCoversChanged: (callback) => {
+      // Same as Steam's: the event object is not passed on.
+      const listener = (): void => callback()
+      ipcRenderer.on(EPIC_CHANNELS.coversChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(EPIC_CHANNELS.coversChanged, listener)
+      }
+    }
   }
 }
 

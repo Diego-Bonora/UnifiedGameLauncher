@@ -5,7 +5,8 @@ import { feedbackForLaunch, nextEpicGames, sortEpicGames } from './epic-view'
 const game = (title: string): EpicInstalledGame => ({
   appName: title.replace(/\s/g, ''),
   title,
-  installPath: `C:\\Games\\${title}`
+  installPath: `C:\\Games\\${title}`,
+  coverUrl: null
 })
 
 describe('sortEpicGames', () => {

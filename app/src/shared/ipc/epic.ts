@@ -1,9 +1,17 @@
 import { z } from 'zod'
-import type { EpicInstalledGame, EpicLaunchRequest } from './epic-channels'
+import {
+  EPIC_COVER_URL_PREFIX,
+  type EpicInstalledGame,
+  type EpicLaunchRequest
+} from './epic-channels'
 
-export { EPIC_CHANNELS } from './epic-channels'
+export { EPIC_CHANNELS, EPIC_COVER_URL_PREFIX } from './epic-channels'
 export type {
+  EpicClearCoverKeyResult,
+  EpicCoverProblem,
+  EpicCoverStatus,
   EpicInstalledGame,
+  EpicSetCoverKeyResult,
   EpicLaunchFailure,
   EpicLaunchRequest,
   EpicLaunchResult
@@ -21,10 +29,21 @@ const appNameSchema = z
 export const epicInstalledGameSchema = z.object({
   appName: appNameSchema,
   title: z.string().min(1),
-  installPath: z.string().min(1)
+  installPath: z.string().min(1),
+  // Only a local cover URL may reach an <img src>.
+  coverUrl: z.string().startsWith(EPIC_COVER_URL_PREFIX).nullable()
 }) satisfies z.ZodType<EpicInstalledGame>
 
 // The only payload that crosses the boundary from renderer input.
 export const epicLaunchRequestSchema = z.object({
   appName: appNameSchema
 }) satisfies z.ZodType<EpicLaunchRequest>
+
+// SteamGridDB keys are 32 hex characters (checked against a real key on
+// 2026-10-02). Surrounding spaces from a paste are trimmed first.
+export const epicCoverKeyRequestSchema = z.object({
+  apiKey: z
+    .string()
+    .trim()
+    .regex(/^[0-9a-fA-F]{32}$/)
+})

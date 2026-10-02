@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { ipcMain } from 'electron'
 import {
   STEAM_CHANNELS,
   steamApiKeyPayloadSchema,
@@ -22,6 +22,7 @@ import {
   type SteamConnection
 } from '../storage/connection-store'
 import { clearSecret, getSecret, setSecret } from '../storage/secret-store'
+import { notifyAllWindows } from './notify-windows'
 
 // This app's only secret today; kept here (not in secret-store.ts, which
 // stays store-agnostic) since only this file's handlers ever read or write it.
@@ -53,17 +54,7 @@ async function buildConnectionStatus(): Promise<SteamConnectionStatus> {
 // window re-reads the library through the normal handler, which already
 // returns the local URLs.
 function notifyCoversChanged(): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    // isDestroyed() can still be false for a window that is mid-teardown, and
-    // send() then throws. This runs in a .then with nothing after it, so an
-    // uncaught throw would be an unhandled rejection; and one bad window must
-    // not stop the others from being told.
-    try {
-      if (!window.isDestroyed()) window.webContents.send(STEAM_CHANNELS.coversChanged)
-    } catch (err) {
-      console.warn('[steam] could not tell a window about new covers:', err)
-    }
-  }
+  notifyAllWindows(STEAM_CHANNELS.coversChanged, 'steam')
 }
 
 async function fallBackToSavedLibrary(

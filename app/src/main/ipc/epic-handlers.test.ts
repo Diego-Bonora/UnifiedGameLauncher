@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { launchEpicGame, listEpicInstalledGames, planEpicLaunch } from './epic-handlers'
+import {
+  detectEpicAppNames,
+  launchEpicGame,
+  listEpicInstalledGames,
+  planEpicLaunch
+} from './epic-handlers'
 import type { InstalledGame, StoreProvider } from '../stores/store-provider'
 
 function fakeProvider(games: InstalledGame[], launchUrl?: string): StoreProvider {
@@ -26,8 +31,37 @@ afterEach(() => {
 describe('listEpicInstalledGames', () => {
   it('maps detected games to the renderer shape, without catalog ids', async () => {
     await expect(listEpicInstalledGames(fakeProvider([alpha]))).resolves.toEqual([
-      { appName: 'Alpha', title: 'Alpha Game', installPath: 'C:\\Games\\Alpha' }
+      { appName: 'Alpha', title: 'Alpha Game', installPath: 'C:\\Games\\Alpha', coverUrl: null }
     ])
+  })
+
+  it('attaches saved cover URLs and reports the listed games', async () => {
+    const onListed = vi.fn()
+    const beta: InstalledGame = { ...alpha, storeGameId: 'Beta', title: 'Beta Game' }
+    const games = await listEpicInstalledGames(fakeProvider([alpha, beta]), {
+      urlsFor: async () => new Map([['Alpha', 'app-cover://epic/Alpha']]),
+      onListed
+    })
+    expect(games.map((g) => g.coverUrl)).toEqual(['app-cover://epic/Alpha', null])
+    expect(onListed).toHaveBeenCalledWith(['Alpha', 'Beta'])
+  })
+
+  it('never passes on a cover URL that is not a local Epic cover', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const games = await listEpicInstalledGames(fakeProvider([alpha]), {
+      urlsFor: async () => new Map([['Alpha', 'https://cdn2.steamgriddb.com/grid/a.png']]),
+      onListed: () => undefined
+    })
+    expect(games).toEqual([])
+  })
+
+  it('still lists the games, with placeholders, when the cover lookup fails', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const games = await listEpicInstalledGames(fakeProvider([alpha]), {
+      urlsFor: async () => Promise.reject(new Error('EACCES')),
+      onListed: () => undefined
+    })
+    expect(games.map((g) => g.coverUrl)).toEqual([null])
   })
 
   it('drops a malformed entry with a warning and keeps the rest', async () => {
@@ -50,6 +84,32 @@ describe('listEpicInstalledGames failure', () => {
     }
     await expect(listEpicInstalledGames(provider)).resolves.toEqual([])
     expect(warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not report a failed detection as a list of games', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const onListed = vi.fn()
+    const provider: StoreProvider = {
+      ...fakeProvider([]),
+      getInstalledGames: async () => Promise.reject(new Error('boom'))
+    }
+    await listEpicInstalledGames(provider, { urlsFor: async () => new Map(), onListed })
+    expect(onListed).not.toHaveBeenCalled()
+  })
+})
+
+describe('detectEpicAppNames', () => {
+  it('returns the AppNames installed right now', async () => {
+    await expect(detectEpicAppNames(fakeProvider([alpha]))).resolves.toEqual(['Alpha'])
+  })
+
+  it('returns [] instead of rejecting when detection fails', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const provider: StoreProvider = {
+      ...fakeProvider([]),
+      getInstalledGames: async () => Promise.reject(new Error('boom'))
+    }
+    await expect(detectEpicAppNames(provider)).resolves.toEqual([])
   })
 })
 

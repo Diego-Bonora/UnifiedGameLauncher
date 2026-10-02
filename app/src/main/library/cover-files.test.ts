@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 // nothing below touches the disk, but the import itself must still resolve.
 vi.mock('electron', () => ({ app: { getPath: () => '/nonexistent' } }))
 
+import { EPIC_COVER_URL_PREFIX } from '@shared/ipc/epic-channels'
 import { COVER_URL_PREFIX } from '@shared/ipc/steam-channels'
 import {
   coverIdFromFileName,
@@ -203,6 +204,16 @@ describe('coverIdFromFileName', () => {
 })
 
 describe('coverUrlFor', () => {
+  it('builds Epic URLs with the prefix main validates them against', () => {
+    // epicInstalledGameSchema drops any game whose coverUrl lacks this
+    // prefix; if the two drifted apart, every Epic game would vanish.
+    expect(coverUrlFor('epic', 'Sugar')).toBe(`${EPIC_COVER_URL_PREFIX}Sugar`)
+    expect(parseCoverRequest(`${EPIC_COVER_URL_PREFIX}Sugar`)).toEqual({
+      store: 'epic',
+      id: 'Sugar'
+    })
+  })
+
   it('builds the same Steam URL the Steam cover cache and renderer use', () => {
     // cover-cache.ts and the renderer build Steam URLs from COVER_URL_PREFIX;
     // the protocol parses them with the STORES table. They must not drift.

@@ -1,3 +1,4 @@
+import type { EpicCoverProblem } from '@shared/ipc/epic-channels'
 import { runWithConcurrencyLimit } from '../stores/steam/library-cover-art'
 import {
   coverIdFromFileName,
@@ -29,7 +30,9 @@ const BACKOFF_MS = 15 * 60 * 1000
 // Gentler than Steam's 4: this is a free, community-run service.
 const MAX_CONCURRENT_LOOKUPS = 2
 
-export type EpicCoverProblem = 'keyRejected' | 'unavailable'
+// One definition, shared with the window, so a new value can't reach the UI
+// without wording for it.
+export type { EpicCoverProblem } from '@shared/ipc/epic-channels'
 
 export interface EpicCoverCacheDeps {
   listFiles: () => Promise<string[]>
@@ -69,6 +72,18 @@ let problem: EpicCoverProblem | null = null
 // old key's misses for 7 days.
 let clearMissesPending = false
 
+// The covers folder or the state file couldn't be used (often a brief lock
+// by antivirus). With a key saved, that shows as "unavailable" and starts the
+// same backoff as a SteamGridDB outage, so focus retries wait for it instead
+// of repeating the failing disk work and its warning on every alt-tab. A
+// rejected key stays the message: it's what the user must fix. A run cut off
+// by a key change belongs to the old key and sets nothing.
+function markLocalFailure(apiKey: string | null, runGeneration: number, now: number): void {
+  if (apiKey === null || apiKey === rejectedKey || runGeneration !== generation) return
+  problem = 'unavailable'
+  backoffUntil = Math.max(backoffUntil, now + BACKOFF_MS)
+}
+
 async function runSync(
   appNames: string[],
   apiKey: string | null,
@@ -92,6 +107,7 @@ async function runSync(
       files = await deps.listFiles()
     } catch (err) {
       console.warn('[epic-covers] could not read the covers folder:', err)
+      markLocalFailure(apiKey, runGeneration, now)
       return 0
     }
 
@@ -127,7 +143,9 @@ async function runSync(
       // A rejected key stays the message: it's what the user must fix, and
       // later syncs stop at the rejected-key check before anything could
       // replace a wrong "unavailable".
-      if (apiKey !== null && apiKey !== rejectedKey) problem = 'unavailable'
+      // ...unless a key change arrived meanwhile: this run belongs to the old
+      // key and must not set the new key's status.
+      markLocalFailure(apiKey, runGeneration, now)
       return 0
     }
     // Only clear the flag if no newer reset asked for it in the meantime.
@@ -168,7 +186,7 @@ async function runSync(
     // Nothing left to ask about, so an old "unavailable" no longer describes
     // anything the user is missing.
     if (todo.length === 0) {
-      problem = null
+      if (runGeneration === generation) problem = null
       return 0
     }
 
@@ -302,6 +320,12 @@ export async function resetEpicCoverLookups(deps: EpicCoverCacheDeps = realDeps)
 
 export function getEpicCoverProblem(): EpicCoverProblem | null {
   return problem
+}
+
+// True while lookups are paused after a failure. The IPC layer skips its
+// focus retries until then: a sync now would only rewrite the state file.
+export function isEpicCoverBackoffActive(now: number = Date.now()): boolean {
+  return now < backoffUntil
 }
 
 // The local cover URL for each game that has one on disk, null for the rest.

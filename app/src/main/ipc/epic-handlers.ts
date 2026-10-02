@@ -11,8 +11,23 @@ import { isAllowedExternalUrl } from '../security/external-url'
 // The logic behind the Epic IPC channels, kept free of any Electron import so
 // it can be tested directly; ipc/epic.ts only wires it to ipcMain and shell.
 
+// How the installed list gets its covers, kept as an interface so this file
+// stays free of the cover cache's Electron and file-system imports.
+export interface EpicListCovers {
+  // Local app-cover:// URL per AppName, null where no cover is saved.
+  urlsFor: (appNames: string[]) => Promise<Map<string, string | null>>
+  // Told about every list read, so covers can be fetched in the background.
+  onListed: (appNames: string[]) => void
+}
+
+const NO_COVERS: EpicListCovers = {
+  urlsFor: async () => new Map(),
+  onListed: () => undefined
+}
+
 export async function listEpicInstalledGames(
-  provider: StoreProvider
+  provider: StoreProvider,
+  covers: EpicListCovers = NO_COVERS
 ): Promise<EpicInstalledGame[]> {
   let games: InstalledGame[]
   try {
@@ -23,13 +38,22 @@ export async function listEpicInstalledGames(
     console.warn('[epic] could not detect installed games:', err)
     return []
   }
+  let coverUrls: Map<string, string | null>
+  try {
+    coverUrls = await covers.urlsFor(games.map((game) => game.storeGameId))
+  } catch (err) {
+    // Covers are decoration: the list still shows, with placeholders.
+    console.warn('[epic] could not look up saved covers:', err)
+    coverUrls = new Map()
+  }
   // A malformed entry is dropped rather than failing the whole list, matching
   // the parser's rule that one bad file must not hide every other game.
-  return games.flatMap((game) => {
+  const listed = games.flatMap((game) => {
     const result = epicInstalledGameSchema.safeParse({
       appName: game.storeGameId,
       title: game.title,
-      installPath: game.installPath
+      installPath: game.installPath,
+      coverUrl: coverUrls.get(game.storeGameId) ?? null
     })
     if (!result.success) {
       console.warn('[epic] dropped a malformed installed game:', result.error.message)
@@ -37,6 +61,15 @@ export async function listEpicInstalledGames(
     }
     return [result.data]
   })
+  covers.onListed(listed.map((game) => game.appName))
+  return listed
+}
+
+// AppNames installed right now, for the cover refetch after a key change.
+// [] when detection fails (listEpicInstalledGames never rejects), which the
+// cover handlers treat as "nothing to fetch now".
+export async function detectEpicAppNames(provider: StoreProvider): Promise<string[]> {
+  return (await listEpicInstalledGames(provider)).map((game) => game.appName)
 }
 
 export type EpicLaunchPlan = { url: string } | { notInstalled: true }

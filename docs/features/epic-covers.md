@@ -19,13 +19,13 @@ Replaces the planned Epic stage 2 (Epic login + owned library). Decided 2026-10-
 - **Coverage gap (known):** SteamGridDB only finds games it has linked to Epic. Bloons TD 6 is in SteamGridDB but linked to Steam only, so it stays on the placeholder (title search was declined).
 
 ## When lookups happen
-- At startup, when the set of installed games changes, and right after a key is saved. Never just because the window regained focus.
+- At startup, when the set of installed games changes, and right after a key is saved. Not on every window focus: a focus only syncs again if the last sync failed (offline, SteamGridDB trouble, an unreadable state file) or the key couldn't be read. These retries wait for the 15-minute backoff, which a covers folder or state file that can't be used also starts; until it ends, a focus does nothing. Decided 2026-10-02: otherwise being offline for a few seconds at startup meant no covers for the whole session.
 - **No match:** only SteamGridDB's own answer counts: `404 "Game not found"` or an empty list. The game keeps its placeholder and isn't asked about again for 7 days.
-- **Unusable posters:** posters came back but none passed our checks. That game is skipped this sync and logged: no "no cover" mark, no backoff, other games are still looked up, and it is asked about again next sync.
+- **Unusable posters:** posters came back but none passed our checks. That game is skipped this sync and logged: no "no cover" mark, no backoff, other games are still looked up, and it is asked about again at the next sync (at the latest the next app start).
 - **Offline, 5xx, 429, or a block page:** nothing is recorded as "no cover". No new attempt for 15 minutes (longer if SteamGridDB sends `Retry-After`, capped at 24 hours). Saved covers keep showing. No raw errors.
 - **Key rejected (401/403 with SteamGridDB's own `{ success: false, errors }` body; a Cloudflare or proxy 403 counts as unavailable):** keep the key and show "SteamGridDB didn't accept your key. Check it or remove it". No more requests until the key changes. Never delete it automatically.
 - **Saving or removing a key:** stops any lookup in progress (an answer for an old key never sets the status of a new one) and clears the "no cover" records (if that write fails, the next sync clears them).
-- **Removing the key:** stops lookups. Saved covers stay, because they're plain images with nothing personal in them.
+- **Removing the key:** stops lookups. Saved covers stay, because they're plain images with nothing personal in them. The folder housekeeping (last-seen dates, pruning, leftover files) still runs without a key when the installed games change; it needs no network.
 
 ## Keeping the folder tidy
 - Each game's "last seen installed" date is recorded. A cover is deleted only once its game hasn't been detected for 30 days, and the record goes only after the file is really gone (a failed delete is retried next sync, not given another 30 days). A locked manifest or a game mid-update drops out of the list for a moment, and that must not delete its cover.

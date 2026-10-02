@@ -1,4 +1,10 @@
-import type { EpicInstalledGame, EpicLaunchResult } from './ipc/epic-channels'
+import type {
+  EpicClearCoverKeyResult,
+  EpicCoverStatus,
+  EpicInstalledGame,
+  EpicLaunchResult,
+  EpicSetCoverKeyResult
+} from './ipc/epic-channels'
 import type {
   SteamCachedLibrary,
   SteamConnectionStatus,
@@ -34,5 +40,14 @@ export interface RendererApi {
     // the game was uninstalled or the Epic launcher can't be reached; rejects
     // only for a malformed request.
     launch: (appName: string) => Promise<EpicLaunchResult>
+    // SteamGridDB key for Epic covers. The key never comes back; only
+    // whether one is saved and any problem with it.
+    getCoverStatus: () => Promise<EpicCoverStatus>
+    // Resolves for every expected outcome (saved, invalid key, can't store).
+    setCoverKey: (apiKey: string) => Promise<EpicSetCoverKeyResult>
+    clearCoverKey: () => Promise<EpicClearCoverKeyResult>
+    // New covers are on disk or the cover status changed: re-read both.
+    // Returns a function that stops listening.
+    onCoversChanged: (callback: () => void) => () => void
   }
 }

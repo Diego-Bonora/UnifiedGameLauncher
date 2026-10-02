@@ -4,6 +4,7 @@ vi.mock('electron', () => ({ app: { getPath: () => '/nonexistent' } }))
 
 import {
   getEpicCoverProblem,
+  isEpicCoverBackoffActive,
   getLocalEpicCoverUrls,
   resetEpicCoverLookups,
   syncEpicCovers,
@@ -241,6 +242,18 @@ describe('syncEpicCovers: failures', () => {
     expect(deps.lookup).toHaveBeenCalledTimes(1)
   })
 
+  it('treats an unreadable covers folder like an outage: message and backoff', async () => {
+    const deps = fakeDeps()
+    deps.listFiles = async () => Promise.reject(new Error('EBUSY'))
+
+    await syncEpicCovers(['A'], KEY, deps)
+
+    expect(deps.lookup).not.toHaveBeenCalled()
+    expect(getEpicCoverProblem()).toBe('unavailable')
+    expect(isEpicCoverBackoffActive(deps.clock.now)).toBe(true)
+    expect(isEpicCoverBackoffActive(deps.clock.now + 15 * 60 * 1000)).toBe(false)
+  })
+
   it('looks nothing up when the state cannot be saved', async () => {
     const deps = fakeDeps()
     deps.updateState = async () => Promise.reject(new Error('disk full'))
@@ -426,6 +439,23 @@ describe('resetEpicCoverLookups', () => {
     await syncEpicCovers(['Bloons'], 'b'.repeat(32), deps)
 
     expect(deps.files.has('Bloons.png')).toBe(true)
+  })
+
+  it("does not let the old key's run set the status after a reset", async () => {
+    const deps = fakeDeps(['A.png'], { A: { lastSeenInstalled: 99 * DAY } })
+    let failState: () => void = () => undefined
+    deps.updateState = () =>
+      new Promise((_resolve, reject) => {
+        failState = () => reject(new Error('EBUSY'))
+      })
+
+    const sync = syncEpicCovers(['A'], KEY, deps)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const reset = resetEpicCoverLookups({ ...deps, updateState: async () => ({}) })
+    failState()
+    await Promise.all([sync, reset])
+
+    expect(getEpicCoverProblem()).toBeNull()
   })
 
   it('keeps saved covers', async () => {
