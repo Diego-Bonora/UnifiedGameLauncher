@@ -46,6 +46,7 @@ A **⋯** button on each manual card (its own button beside the card, like the s
 - **Rename**: same title rules as adding.
 - **Launch arguments**: edit the arguments.
 - **Change .exe**: main opens the file dialog again and replaces the path (for a moved or reinstalled game). Title, arguments, star and cover stay.
+- **Cover**: a two-option choice, "Steam cover" or "Exe icon" (radio items with `aria-checked`). See section 4.
 - **Remove**: asks "Remove <title> from your library? Its files on your PC are not touched." Removing deletes the entry, its star and its saved cover/icon; never any game files.
 
 Titles: 1–200 characters after trimming. Arguments: up to 1,000 characters. Both validated in main.
@@ -59,16 +60,20 @@ Titles: 1–200 characters after trimming. Arguments: up to 1,000 characters. Bo
 - **Security:** this is a narrow exception to "openExternal only for `steam://` and `com.epicgames.launcher://`", which stays as it is. Only paths the user picked in the native dialog, saved by main, are ever run; the renderer can't name a path or a program. `.bat`/`.cmd`/`.lnk` are not accepted.
 
 ### Saved data
-`manual-games.json` in the app data folder (plain JSON, temp-file-then-rename). Per game: `{ id, title, exePath, args, cover? }`, where `id` is a random UUID made by main. An unreadable file reads as "no manual games" and is not overwritten until the user adds or edits one, so a bad read can't wipe the list (lessons.md: never overwrite good data with an empty result). Manual games work fully offline.
+`manual-games.json` in the app data folder (plain JSON, temp-file-then-rename). Per game: `{ id, title, exePath, args, coverSource, cover? }`, where `coverSource` is `'steam' | 'icon'` (default `'steam'`), where `id` is a random UUID made by main. An unreadable file reads as "no manual games" and is not overwritten until the user adds or edits one, so a bad read can't wipe the list (lessons.md: never overwrite good data with an empty result). Manual games work fully offline.
 
 ## 4. Manual game covers
 
-- **First choice: a Steam poster.** When a game is added, or renamed, main searches Steam's store by the title. It uses the cover only when a result's name matches the title exactly, ignoring case, accents, ®/™ and punctuation. Otherwise there's no cover. The poster is fetched from the same Steam cover service the Steam library uses, saved in `covers-manual/`, and checked by its bytes like the other caches.
-- **Otherwise: the exe's icon on the placeholder.** Main reads the `.exe`'s icon from Windows (`app.getFileIcon`) and saves it as a PNG beside the covers. The card shows the title placeholder with that icon in the middle. An exe without its own icon gets Windows' generic one, which is fine.
+- **The user chooses per game** (user's call, 2026-10-03), in the card's ⋯ menu: **Steam cover** (the default for a new game) or **Exe icon**. The choice is saved with the game and survives Change .exe and Rename.
+- **Exe icon** always shows the exe's icon on the placeholder (below), and never asks Steam, so that game's title isn't sent anywhere.
+- **Steam cover** tries a Steam poster first. If there is none (no exact match, offline, Steam erroring), the card falls back to the exe icon, and switches to the poster if a later try finds one.
+- Switching back to Steam cover asks Steam again (once, unless a miss for the same title is already remembered). Switching to Exe icon keeps the saved poster file, so switching back is instant; Remove deletes both.
+- **Finding the Steam poster:** when a game with Steam cover is added, renamed or switched to Steam cover, main searches Steam's store by the title. It uses the cover only when a result's name matches the title exactly, ignoring case, accents, ®/™ and punctuation. Otherwise there's no cover. The poster is fetched from the same Steam cover service the Steam library uses, saved in `covers-manual/`, and checked by its bytes like the other caches.
+- **The exe's icon on the placeholder:** main reads the `.exe`'s icon from Windows (`app.getFileIcon`) and saves it as a PNG beside the covers. The card shows the title placeholder with that icon in the middle. An exe without its own icon gets Windows' generic one, which is fine.
 - A failed lookup (offline, Steam erroring) is retried on a later app start, no more than once per game per session. A miss (no exact match) is remembered for that title and not asked again unless the game is renamed.
 - **Wrong matches** are possible with an exact title (two games with the same name). Accepted for v1; Rename to something else drops the Steam cover.
-- **UNVERIFIED (check before Step 4):** that Steam's store search by title answers a plain keyless request, and what it returns. This cloud session's network policy blocks the Steam store, so the user makes one plain request from their own PC first (lessons.md, 2026-09-21). If it doesn't work, Step 4 is exe icon only.
-- The privacy policy gains a line: the titles of manual games are sent to Steam to find a cover.
+- **UNVERIFIED (check before Step 4):** that Steam's store search by title answers a plain keyless request, and what it returns. This cloud session's network policy blocks the Steam store, so the user makes one plain request from their own PC first (lessons.md, 2026-09-21). If it doesn't work, Step 4 is exe icon only and the Cover choice is left out.
+- The privacy policy gains a line: the titles of manual games set to Steam cover are sent to Steam to find a cover; Exe icon games send nothing.
 
 ## Not in this milestone
 - Sort options, a Favorites view, Installed-only toggle, hidden games, Steam tool filtering.

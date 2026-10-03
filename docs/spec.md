@@ -16,7 +16,7 @@ One local user per Windows account. There are no roles or permissions tiers. Sto
 - Epic: installed detection + launch, no Epic login. Owned-but-not-installed Epic games are not shown. Decided 2026-10-02 after reading Epic's EULA/ToS: an Epic login would mean acting as Epic's own launcher. See @docs/features/epic-covers.md
 - Epic cover art from SteamGridDB, using a SteamGridDB API key the user enters (optional; without it, tiles show the title on a placeholder)
 - Library cache and offline mode
-- Manual games (pick an .exe): a "Manual" store in the sidebar; rename, launch arguments, change .exe, remove; cover from Steam by exact title, else the exe's icon. See @docs/features/library-tools.md
+- Manual games (pick an .exe): a "Manual" store in the sidebar; rename, launch arguments, change .exe, remove; a per-game cover choice: Steam cover (by exact title, falling back to the exe's icon) or Exe icon. See @docs/features/library-tools.md
 - Search by name in every game view, and a favorite star that pins a game to the top of its section ("sort by store" = the per-store sidebar views). See @docs/features/library-tools.md
 - In-app privacy policy
 - Windows installer distributed through GitHub Releases
@@ -38,7 +38,7 @@ One local user per Windows account. There are no roles or permissions tiers. Sto
 - `StoreConnection { store, status }` (Steam: public Steam ID; no store tokens are stored today)
 - `Settings`
 - Favorites: a set of card keys `<store>:<id>` (`favorites.json`)
-- `ManualGame { id, title, exePath, args, cover? }` (`manual-games.json`; `id` is a UUID made by main)
+- `ManualGame { id, title, exePath, args, coverSource: 'steam' | 'icon', cover? }` (`manual-games.json`; `id` is a UUID made by main)
 - Epic cover state per `AppName`: `{ lastSeenInstalled, noCoverCheckedAt? }` (prunes covers after 30 days unseen; re-asks SteamGridDB about misses after 7 days). See @docs/features/epic-covers.md
 
 Stored as JSON in `%APPDATA%\<APP_NAME>`. Tokens and API keys (Steam Web API key, SteamGridDB key) go only through Electron `safeStorage`. Cover images live in per-store folders (`covers/` for Steam, `covers-epic/` for Epic, `covers-manual/` for manual games).
