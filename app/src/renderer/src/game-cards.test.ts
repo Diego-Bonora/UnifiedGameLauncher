@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { EpicInstalledGame } from '@shared/ipc/epic-channels'
 import type { SteamInstalledGame, SteamOwnedGame } from '@shared/ipc/steam-channels'
-import { buildViewSections, viewHasLibrary, type LibraryData } from './game-cards'
+import { buildViewSections, focusAfterChange, viewHasLibrary, type LibraryData } from './game-cards'
 
 const installed = (appId: string, title: string): SteamInstalledGame => ({
   appId,
@@ -113,5 +113,29 @@ describe('buildViewSections', () => {
       steamInstalled: [...mixed.steamInstalled].reverse()
     }
     expect(buildViewSections('all', reversed).installed.map((card) => card.key)).toEqual(once)
+  })
+})
+
+describe('focusAfterChange', () => {
+  const sections = buildViewSections('all', data)
+
+  it('leaves focus alone when the card is still in its section', () => {
+    expect(focusAfterChange({ key: 'steam:440', section: 'installed' }, sections)).toBeNull()
+    expect(focusAfterChange({ key: 'steam:570', section: 'library' }, sections)).toBeNull()
+  })
+
+  it('follows a card that moved to the other section', () => {
+    // As if Team Fortress 2 had just been installed and Dota 2 uninstalled.
+    expect(focusAfterChange({ key: 'steam:440', section: 'library' }, sections)).toBe('installed')
+    expect(focusAfterChange({ key: 'steam:570', section: 'installed' }, sections)).toBe('library')
+  })
+
+  it('stays in the old section when the card is gone', () => {
+    expect(focusAfterChange({ key: 'epic:Gone', section: 'installed' }, sections)).toBe('installed')
+  })
+
+  it('never points at a Library section the view does not have', () => {
+    const epicOnly = buildViewSections('epic', data)
+    expect(focusAfterChange({ key: 'steam:570', section: 'installed' }, epicOnly)).toBe('installed')
   })
 })

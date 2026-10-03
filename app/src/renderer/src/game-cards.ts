@@ -43,13 +43,15 @@ function card(store: StoreId, id: string, title: string, coverUrl: string | null
   return { key: cardKey(store, id), store, id, title, coverUrl }
 }
 
+// One collator for every sort: localeCompare with options builds a new one
+// per comparison, which made sorting a 2,000-game library about 35x slower.
+const titleCollator = new Intl.Collator(undefined, { sensitivity: 'base' })
+
 // By title, ignoring case and accents ("ö" next to "o"), stores mixed. The key
 // breaks ties so two games with the same title don't swap places between
 // renders.
 function byTitle(a: GameCard, b: GameCard): number {
-  return (
-    a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) || (a.key < b.key ? -1 : 1)
-  )
+  return titleCollator.compare(a.title, b.title) || (a.key < b.key ? -1 : 1)
 }
 
 function inView(view: LibraryView, store: StoreId): boolean {
@@ -91,4 +93,22 @@ export function buildViewSections(view: LibraryView, data: LibraryData): ViewSec
     : []
 
   return { installed: installed.sort(byTitle), library: library.sort(byTitle) }
+}
+
+export type SectionName = 'installed' | 'library'
+
+// Where keyboard focus should go after the sections changed under a focused
+// card (spec: "Focus during a refresh"). A card that moved to the other
+// section sends focus to that section's heading, so the next Tab continues
+// near it; a card that is gone sends it to the heading of the section it was
+// in. null when the card is still where it was (React kept it, focus is fine).
+export function focusAfterChange(
+  focused: { key: string; section: SectionName },
+  sections: ViewSections
+): SectionName | null {
+  const inInstalled = sections.installed.some((card) => card.key === focused.key)
+  const inLibrary = sections.library?.some((card) => card.key === focused.key) ?? false
+  if (inInstalled) return focused.section === 'installed' ? null : 'installed'
+  if (inLibrary) return focused.section === 'library' ? null : 'library'
+  return focused.section
 }

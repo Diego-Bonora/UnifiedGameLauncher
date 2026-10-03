@@ -1,7 +1,16 @@
-import EpicInstalledSection from './EpicInstalledSection'
-import GameCoverArt from './GameCoverArt'
-import { buildViewSections, type LibraryView } from './game-cards'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import GameSection from './GameSection'
+import GameTile from './GameTile'
 import { COVER_KEY_REJECTED_NOTICE, showCoverKeyRejectedNotice } from './epic-cover-messages'
+import {
+  buildViewSections,
+  focusAfterChange,
+  viewHasLibrary,
+  type GameCard,
+  type LibraryView,
+  type SectionName
+} from './game-cards'
+import type { HandOffKind } from './hand-off'
 import { screenLabel } from './navigation'
 import type { EpicLibrary } from './use-epic-library'
 import type { HandOff } from './use-hand-off'
@@ -15,20 +24,26 @@ interface LibraryScreenProps {
   onOpenSettings: () => void
 }
 
+const BUTTON =
+  'rounded-control border border-border px-3 py-1 text-sm font-medium transition-colors hover:bg-surface-2'
+
 function OpenSettingsButton({ onClick }: { onClick: () => void }): React.JSX.Element {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-control border border-border px-3 py-1 text-sm font-medium transition-colors hover:bg-surface-2"
-    >
+    <button type="button" onClick={onClick} className={BUTTON}>
       Open Settings
     </button>
   )
 }
 
-// One game view: All games or a single store. This step only splits the old
-// single page by store; the Installed/Library grid replaces these lists next.
+const INSTALLED_EMPTY: Record<LibraryView, string> = {
+  all: 'No installed games found on this PC.',
+  steam: 'No Steam games installed on this PC.',
+  epic: 'No Epic games installed on this PC.'
+}
+
+// One game view (All games, or one store): an Installed section, then a
+// Library section of owned games that aren't installed, for views whose
+// stores can list those (docs/features/library-layout.md, "Game views").
 function LibraryScreen({
   view,
   steam,
@@ -36,137 +51,182 @@ function LibraryScreen({
   handOff,
   onOpenSettings
 }: LibraryScreenProps): React.JSX.Element {
-  const showSteam = view === 'all' || view === 'steam'
-  const showEpic = view === 'all' || view === 'epic'
-  const data = {
-    steamInstalled: steam.installed,
-    steamOwned: steam.owned,
-    epicInstalled: epic.games
-  }
-  const steamInstalledCards = buildViewSections('steam', data).installed
-  const epicCards = buildViewSections('epic', data).installed
-  const { owned, loadingOwned, notice, ownedError, needsRetry } = steam
+  // Rebuilt only when a list or the view changes, not on every render (each
+  // click and the end of every launch pause re-render this screen).
+  const { installed: steamInstalled, owned: steamOwned } = steam
+  const sections = useMemo(
+    () =>
+      buildViewSections(view, {
+        steamInstalled,
+        steamOwned,
+        epicInstalled: epic.games
+      }),
+    [view, steamInstalled, steamOwned, epic.games]
+  )
+  // The Library section below is Steam's: Steam is the only store with an
+  // owned library today. A second store with `hasLibrary` needs its own
+  // loading, notices and empty states here, not Steam's.
+  const hasLibrary = viewHasLibrary(view)
+  const includesSteam = view === 'all' || view === 'steam'
+  const includesEpic = view === 'all' || view === 'epic'
+  const installedLoading =
+    (includesSteam && !steam.installedLoaded) || (includesEpic && !epic.loaded)
+
+  // Keyboard focus that would be lost when a refresh moves the focused card to
+  // the other section (React then unmounts it) or removes it. Tracked through
+  // focusin, which a removed element never fires, so the ref still names the
+  // card after it is gone.
+  const lastFocusedRef = useRef<{ key: string; section: SectionName } | null>(null)
+  const installedHeadingRef = useRef<HTMLHeadingElement>(null)
+  const libraryHeadingRef = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    const handleFocusIn = (event: FocusEvent): void => {
+      const target = event.target instanceof HTMLElement ? event.target : null
+      const key = target?.dataset['cardKey']
+      const section = target?.closest('[data-section]')?.getAttribute('data-section')
+      lastFocusedRef.current =
+        key !== undefined && (section === 'installed' || section === 'library')
+          ? { key, section }
+          : null
+    }
+    // Focus leaving a card that still exists a moment later was the user's
+    // own doing (a click on empty space drops focus to the page body too), so
+    // a later move of that card must not pull focus back to a heading. A card
+    // that was removed is not connected any more, and stays remembered.
+    const handleFocusOut = (event: FocusEvent): void => {
+      const target = event.target instanceof HTMLElement ? event.target : null
+      if (target?.dataset['cardKey'] === undefined) return
+      setTimeout(() => {
+        if (target.isConnected && lastFocusedRef.current?.key === target.dataset['cardKey']) {
+          lastFocusedRef.current = null
+        }
+      }, 0)
+    }
+    document.addEventListener('focusin', handleFocusIn)
+    document.addEventListener('focusout', handleFocusOut)
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn)
+      document.removeEventListener('focusout', handleFocusOut)
+    }
+  }, [])
+
+  // Before paint, so the heading has focus by the time the user sees the move.
+  useLayoutEffect(() => {
+    const focused = lastFocusedRef.current
+    if (focused === null || document.activeElement !== document.body) return
+    const target = focusAfterChange(focused, sections)
+    if (target === null) return
+    lastFocusedRef.current = null
+    const heading = target === 'installed' ? installedHeadingRef.current : libraryHeadingRef.current
+    heading?.focus()
+  })
+
+  const renderCards = (cards: GameCard[], kind: HandOffKind): React.ReactNode =>
+    cards.map((card) => (
+      <li key={card.key} className="min-w-0">
+        <GameTile
+          card={card}
+          kind={kind}
+          showBadge={view === 'all'}
+          coverRetryToken={card.store === 'epic' ? epic.coverRetryToken : undefined}
+          busy={handOff.activeKey !== null}
+          active={handOff.activeKey === card.key}
+          onStart={() => handOff.start(card, kind)}
+        />
+      </li>
+    ))
+
+  const { owned, notice, ownedError, needsRetry } = steam
+  const libraryNotices = needsRetry && (
+    <div className="flex flex-wrap items-center gap-2">
+      {notice?.tone === 'pill' && (
+        <p
+          role="status"
+          className="inline-flex w-fit items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted"
+        >
+          <span className="h-1 w-1 rounded-full bg-muted" aria-hidden="true" />
+          {notice.text}
+        </p>
+      )}
+      {notice !== null && notice.tone !== 'pill' && (
+        <p className={notice.tone === 'danger' ? 'text-danger' : 'text-sm text-muted'}>
+          {notice.text}
+        </p>
+      )}
+      {notice?.opensSettings === true && <OpenSettingsButton onClick={onOpenSettings} />}
+      {ownedError !== null && <p className="text-danger">{ownedError}</p>}
+      {ownedError !== null && owned !== null && (
+        <p className="text-sm text-muted">Showing your last saved library.</p>
+      )}
+      <button type="button" onClick={steam.refreshOwned} className={BUTTON}>
+        Try again
+      </button>
+    </div>
+  )
+
+  // What the Library section says instead of a grid. A missing connection or
+  // key comes first: until then there is no owned list to compare with.
+  const libraryEmpty = !steam.showOwned ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <p className="text-muted">
+        Connect Steam and add your Steam Web API key in Settings to see games you own but
+        haven&apos;t installed.
+      </p>
+      <OpenSettingsButton onClick={onOpenSettings} />
+    </div>
+  ) : owned === null ? null : owned.length === 0 ? (
+    <p className="text-muted">
+      No games found. Your Steam library might be empty, or your profile&apos;s game details might
+      be set to private.
+    </p>
+  ) : (
+    <p className="text-muted">Every game you own is installed.</p>
+  )
 
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold">{screenLabel(view)}</h1>
 
-      {showEpic && showCoverKeyRejectedNotice(epic.coverStatus) && (
-        <div className="flex flex-wrap items-center gap-3">
+      {includesEpic && showCoverKeyRejectedNotice(epic.coverStatus) && (
+        <div className="flex flex-wrap items-center gap-2">
           <p className="text-danger">{COVER_KEY_REJECTED_NOTICE}</p>
           <OpenSettingsButton onClick={onOpenSettings} />
         </div>
       )}
 
-      {showSteam && steam.connectionLoaded && !steam.showOwned && (
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-muted">
-            Connect Steam and add your Steam Web API key in Settings to see games you own but
-            haven&apos;t installed.
-          </p>
-          <OpenSettingsButton onClick={onOpenSettings} />
+      <div data-section="installed">
+        <GameSection
+          id={`${view}-installed`}
+          title="Installed"
+          headingRef={installedHeadingRef}
+          loading={installedLoading}
+          empty={<p className="text-muted">{INSTALLED_EMPTY[view]}</p>}
+          hasCards={sections.installed.length > 0}
+        >
+          {renderCards(sections.installed, 'launch')}
+        </GameSection>
+      </div>
+
+      {hasLibrary && includesSteam && sections.library !== null && (
+        <div data-section="library">
+          <GameSection
+            id={`${view}-library`}
+            title="Library"
+            headingRef={libraryHeadingRef}
+            // Also while the first connection read runs (so a connected user
+            // never sees the "Connect Steam" line flash by), and until the
+            // installed list is in: before that every owned game would show
+            // here as "Install", including the ones already on this PC.
+            loading={!steam.connectionLoaded || steam.loadingOwned || !steam.installedLoaded}
+            notices={steam.showOwned ? libraryNotices : null}
+            empty={libraryEmpty}
+            hasCards={sections.library.length > 0}
+          >
+            {renderCards(sections.library, 'install')}
+          </GameSection>
         </div>
       )}
-
-      {showSteam && steam.showOwned && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">Your Steam Library</h2>
-          {needsRetry && (
-            <div className="flex flex-wrap items-center gap-3">
-              {notice?.tone === 'pill' && (
-                <p
-                  role="status"
-                  className="inline-flex w-fit items-center gap-2 rounded-full bg-surface-2 px-3 py-1 text-xs text-muted"
-                >
-                  <span className="h-2 w-2 rounded-full bg-muted" aria-hidden="true" />
-                  {notice.text}
-                </p>
-              )}
-              {notice !== null && notice.tone !== 'pill' && (
-                <p className={notice.tone === 'danger' ? 'text-danger' : 'text-sm text-muted'}>
-                  {notice.text}
-                </p>
-              )}
-              {notice?.opensSettings === true && <OpenSettingsButton onClick={onOpenSettings} />}
-              {ownedError !== null && <p className="text-danger">{ownedError}</p>}
-              {ownedError !== null && owned !== null && (
-                <p className="text-sm text-muted">Showing your last saved library.</p>
-              )}
-              <button
-                type="button"
-                onClick={steam.refreshOwned}
-                className="rounded-control border border-border px-3 py-1 text-sm font-medium transition-colors hover:bg-surface-2"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-          {loadingOwned && (
-            <div
-              className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4"
-              aria-busy="true"
-            >
-              {[0, 1, 2, 3, 4, 5].map((key) => (
-                <div key={key} className="aspect-[2/3] animate-pulse rounded-card bg-surface-2" />
-              ))}
-            </div>
-          )}
-          {!loadingOwned && owned !== null && owned.length === 0 && (
-            <p className="text-muted">
-              No games found. Your Steam library might be empty, or your profile&apos;s game details
-              might be set to private.
-            </p>
-          )}
-          {!loadingOwned && owned !== null && owned.length > 0 && (
-            <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-              {owned.map((game) => (
-                <li key={game.appId} className="flex min-w-0 flex-col gap-2">
-                  <GameCoverArt coverUrl={game.coverUrl} />
-                  <span className="truncate text-sm text-muted">{game.title}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {showSteam && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">Installed Steam games</h2>
-          {!steam.installedLoaded && (
-            <div className="flex flex-col gap-2" aria-busy="true">
-              {[0, 1, 2].map((key) => (
-                <div key={key} className="h-14 animate-pulse rounded-card bg-surface-2" />
-              ))}
-            </div>
-          )}
-          {steam.installedLoaded && steamInstalledCards.length === 0 && (
-            <p className="text-muted">No Steam games installed on this PC.</p>
-          )}
-          {steam.installedLoaded && steamInstalledCards.length > 0 && (
-            <ul className="flex flex-col gap-2">
-              {steamInstalledCards.map((game) => (
-                <li
-                  key={game.key}
-                  className="flex items-center justify-between rounded-card border border-border bg-surface px-4 py-3"
-                >
-                  <span>{game.title}</span>
-                  <button
-                    type="button"
-                    onClick={() => handOff.start(game, 'launch')}
-                    aria-disabled={handOff.activeKey !== null}
-                    className="rounded-control bg-accent px-3 py-1 text-sm font-medium transition-colors hover:bg-accent-hover"
-                  >
-                    Play
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {showEpic && <EpicInstalledSection epic={epic} cards={epicCards} handOff={handOff} />}
     </div>
   )
 }
