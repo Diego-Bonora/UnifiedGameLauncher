@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { EpicCoverStatus } from '@shared/ipc/epic-channels'
+import type {
+  EpicClearCoverKeyResult,
+  EpicCoverStatus,
+  EpicSetCoverKeyResult
+} from '@shared/ipc/epic-channels'
 import {
   coverKeyMessage,
   coverStatusLine,
@@ -9,15 +13,23 @@ import {
 
 interface EpicCoverKeyFormProps {
   status: EpicCoverStatus
-  onStatusChange: (status: EpicCoverStatus) => void
+  // The save/remove calls and their busy flag live in the app-wide Epic hook,
+  // which also applies the new status; see use-epic-library.ts.
+  busy: boolean
+  onSave: (apiKey: string) => Promise<EpicSetCoverKeyResult | 'busy' | 'failed'>
+  onClear: () => Promise<EpicClearCoverKeyResult | 'busy' | 'failed'>
 }
 
 // The SteamGridDB key for Epic covers. Out of the way once it works: the full
 // form only shows with no key or a rejected one; otherwise a single quiet line
 // with a Remove button. The key is sent to main and never comes back.
-function EpicCoverKeyForm({ status, onStatusChange }: EpicCoverKeyFormProps): React.JSX.Element {
+function EpicCoverKeyForm({
+  status,
+  busy,
+  onSave,
+  onClear
+}: EpicCoverKeyFormProps): React.JSX.Element {
   const [keyInput, setKeyInput] = useState('')
-  const [busy, setBusy] = useState(false)
   // An action's error, tagged with the status it was shown under. It stops
   // showing once the status moves on (a background notice, another action) or
   // the user starts typing, so an old message never sits next to a status it
@@ -51,35 +63,25 @@ function EpicCoverKeyForm({ status, onStatusChange }: EpicCoverKeyFormProps): Re
   const handleSave = (event: React.FormEvent): void => {
     event.preventDefault()
     if (busy) return
-    setBusy(true)
     setProblem(null)
-    window.api.epic
-      .setCoverKey(keyInput)
-      .then((result) => {
-        if (result.saved) {
-          // Cleared only on success, so a typo can be fixed in place.
-          setKeyInput('')
-          onStatusChange(result.status)
-        } else {
-          setProblem(result.reason)
-        }
-      })
-      .catch(() => setProblem('failed'))
-      .finally(() => setBusy(false))
+    void onSave(keyInput).then((result) => {
+      // Another key action is still running; this click did nothing.
+      if (result === 'busy') return
+      if (result === 'failed') setProblem('failed')
+      // Cleared only on success, so a typo can be fixed in place.
+      else if (result.saved) setKeyInput('')
+      else setProblem(result.reason)
+    })
   }
 
   const handleRemove = (): void => {
     if (busy) return
-    setBusy(true)
     setProblem(null)
-    window.api.epic
-      .clearCoverKey()
-      .then((result) => {
-        if (!result.cleared) setProblem('removeFailed', result.status)
-        onStatusChange(result.status)
-      })
-      .catch(() => setProblem('failed'))
-      .finally(() => setBusy(false))
+    void onClear().then((result) => {
+      if (result === 'busy') return
+      if (result === 'failed') setProblem('failed')
+      else if (!result.cleared) setProblem('removeFailed', result.status)
+    })
   }
 
   const removeButton = status.hasKey && (

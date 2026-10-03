@@ -23,7 +23,7 @@ From top to bottom:
 - Entries are text only, with no store logos (brand rule: store logos appear only as small badges on games). The active entry is marked with the accent color and `aria-current="page"`. Entries are real buttons and work from the keyboard.
 
 ### Narrow windows
-- 768 px or wider: the sidebar is always visible, at a fixed width (about 200–220 px).
+- 768 px or wider: the sidebar is always visible, at a fixed width (224 px).
 - Narrower: the sidebar is hidden. A slim top bar shows the app name and a ☰ button that slides the sidebar over the content. Picking an entry, pressing Esc or clicking outside closes it, and focus returns to the ☰ button.
 
 ## Game views (All games, and one per store)

@@ -19,6 +19,17 @@ describe('libraryNotice', () => {
       expect(notice.tone).toBe('danger')
       expect(notice.text).toContain('may be wrong')
       expect(notice.text).toContain('remove it and add it again')
+      // The key form is on the Settings screen now, not above the library.
+      expect(notice.text).toContain('in Settings')
+      expect(notice.text).not.toContain('above')
+      expect(notice.opensSettings).toBe(true)
+    }
+  })
+
+  it('offers Settings only for a key problem', () => {
+    for (const problem of ['offline', 'unavailable', 'empty'] as const) {
+      expect(libraryNotice(problem, true).opensSettings).toBeUndefined()
+      expect(libraryNotice(problem, false).opensSettings).toBeUndefined()
     }
   })
 

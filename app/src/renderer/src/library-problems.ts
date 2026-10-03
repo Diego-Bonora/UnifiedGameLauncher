@@ -9,6 +9,9 @@ export type NoticeTone = 'pill' | 'muted' | 'danger'
 export interface LibraryNotice {
   tone: NoticeTone
   text: string
+  // The fix is in Settings (the key form lives there), so the notice gets an
+  // "Open Settings" button.
+  opensSettings?: true
 }
 
 // `hasSavedCopy` is whether a library is on screen: the same problem reads
@@ -30,8 +33,9 @@ export function libraryNotice(problem: SteamLibraryProblem, hasSavedCopy: boolea
       return {
         tone: 'danger',
         text: hasSavedCopy
-          ? 'Steam turned down the request, so this is your saved library. Your Web API key may be wrong: check it above, or remove it and add it again.'
-          : 'Steam turned down the request. Your Web API key may be wrong: check it above, or remove it and add it again.'
+          ? 'Steam turned down the request, so this is your saved library. Your Web API key may be wrong: check it in Settings, or remove it and add it again.'
+          : 'Steam turned down the request. Your Web API key may be wrong: check it in Settings, or remove it and add it again.',
+        opensSettings: true
       }
     case 'unavailable':
       return hasSavedCopy

@@ -41,6 +41,10 @@ export interface SteamLibrary {
   installedLoaded: boolean
 
   connection: SteamConnectionStatus | null
+  // false until the first connection read has answered, so a view can tell
+  // "not connected" apart from "don't know yet" (and not flash a "Connect
+  // Steam" prompt at every start for users who are connected).
+  connectionLoaded: boolean
   connecting: boolean
   connectError: string | null
   connect: () => void
@@ -70,6 +74,7 @@ export function useSteamLibrary(): SteamLibrary {
   const [installed, setInstalled] = useState<SteamInstalledGame[]>([])
   const [installedLoaded, setInstalledLoaded] = useState(false)
   const [connection, setConnection] = useState<SteamConnectionStatus | null>(null)
+  const [connectionLoaded, setConnectionLoaded] = useState(false)
   const [connectError, setConnectError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
@@ -181,6 +186,7 @@ export function useSteamLibrary(): SteamLibrary {
       .getConnectionStatus()
       .then(setConnection)
       .catch(() => setConnection(null))
+      .finally(() => setConnectionLoaded(true))
 
     return () => window.removeEventListener('focus', loadInstalled)
   }, [loadInstalled])
@@ -336,6 +342,7 @@ export function useSteamLibrary(): SteamLibrary {
     installed,
     installedLoaded,
     connection,
+    connectionLoaded,
     connecting,
     connectError,
     connect,

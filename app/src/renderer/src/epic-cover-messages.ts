@@ -33,6 +33,17 @@ export function coverStatusLine(status: EpicCoverStatus): CoverStatusLine {
   }
 }
 
+// Shown in the game views (not just next to the form in Settings) when a
+// saved key stops working: covers quietly stop arriving otherwise, and the
+// form is on another screen. A missing key gets no such line: covers are
+// optional, and the views don't nag.
+export const COVER_KEY_REJECTED_NOTICE =
+  "SteamGridDB didn't accept your key, so new Epic covers can't load. Check it in Settings."
+
+export function showCoverKeyRejectedNotice(status: EpicCoverStatus | null): boolean {
+  return status !== null && status.hasKey && status.problem === 'keyRejected'
+}
+
 // The full form shows only when there's something to do: no key yet, or a
 // key that was rejected. A working key collapses to one quiet line.
 export function shouldShowKeyForm(status: EpicCoverStatus): boolean {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { coverKeyMessage, coverStatusLine, shouldShowKeyForm } from './epic-cover-messages'
+import {
+  COVER_KEY_REJECTED_NOTICE,
+  coverKeyMessage,
+  coverStatusLine,
+  shouldShowKeyForm,
+  showCoverKeyRejectedNotice
+} from './epic-cover-messages'
 
 describe('coverStatusLine', () => {
   it('invites adding a key when none is saved', () => {
@@ -47,4 +53,21 @@ describe('coverKeyMessage', () => {
       expect(message).not.toMatch(/error|invoke|remote method/i)
     }
   )
+})
+
+describe('showCoverKeyRejectedNotice', () => {
+  it('shows only for a saved key that SteamGridDB turned down', () => {
+    expect(showCoverKeyRejectedNotice({ hasKey: true, problem: 'keyRejected' })).toBe(true)
+  })
+
+  it("doesn't nag about a missing key, an outage, or a status not read yet", () => {
+    expect(showCoverKeyRejectedNotice({ hasKey: false, problem: null })).toBe(false)
+    expect(showCoverKeyRejectedNotice({ hasKey: true, problem: 'unavailable' })).toBe(false)
+    expect(showCoverKeyRejectedNotice({ hasKey: true, problem: null })).toBe(false)
+    expect(showCoverKeyRejectedNotice(null)).toBe(false)
+  })
+
+  it('points to Settings, where the form is', () => {
+    expect(COVER_KEY_REJECTED_NOTICE).toContain('in Settings')
+  })
 })
