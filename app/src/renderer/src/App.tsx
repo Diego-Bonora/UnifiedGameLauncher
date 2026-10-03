@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@shared/app-info'
 import LibraryScreen from './LibraryScreen'
+import { ManualGameFormDialog, RemoveGameDialog } from './ManualGameDialogs'
 import SettingsScreen from './SettingsScreen'
 import Sidebar from './Sidebar'
 import type { Screen } from './navigation'
 import { useEpicLibrary } from './use-epic-library'
 import { useFavorites } from './use-favorites'
 import { useHandOff } from './use-hand-off'
+import { useManualActions } from './use-manual-actions'
 import { useManualGames } from './use-manual-games'
 import { useSteamLibrary } from './use-steam-library'
 
@@ -35,6 +37,12 @@ function App(): React.JSX.Element {
   const steam = useSteamLibrary()
   const epic = useEpicLibrary()
   const manual = useManualGames()
+  // When what opened a manual-game dialog is gone (a removed game's ⋯
+  // button), focus goes to the Installed heading instead of the page.
+  const focusInstalledHeading = useCallback(() => {
+    document.querySelector<HTMLElement>('[data-section="installed"] h2')?.focus()
+  }, [])
+  const manualActions = useManualActions(manual, focusInstalledHeading)
   const favorites = useFavorites()
   const handOff = useHandOff((store) => {
     if (store === 'epic') epic.reloadGames()
@@ -158,6 +166,16 @@ function App(): React.JSX.Element {
               {handOff.feedback.message}
             </p>
           )}
+          {manualActions.message?.tone === 'danger' && (
+            <p role="alert" className="text-danger">
+              {manualActions.message.text}
+            </p>
+          )}
+          {manualActions.message?.tone === 'info' && (
+            <p role="status" className="text-sm text-muted">
+              {manualActions.message.text}
+            </p>
+          )}
           {favorites.problem !== null && (
             <p role="alert" className="text-danger">
               {favorites.problem}
@@ -177,6 +195,7 @@ function App(): React.JSX.Element {
               steam={steam}
               epic={epic}
               manual={manual}
+              manualActions={manualActions}
               handOff={handOff}
               favorites={favorites}
               searchQuery={searchQuery}
@@ -189,6 +208,27 @@ function App(): React.JSX.Element {
           )}
         </main>
       </div>
+      {manualActions.dialog?.kind === 'form' && (
+        <ManualGameFormDialog
+          // A new dialog starts from its own values, not the last one's.
+          key={`${manualActions.dialog.mode}:${manualActions.dialog.game?.id ?? 'new'}`}
+          mode={manualActions.dialog.mode}
+          initial={manualActions.dialog.initial}
+          gameTitle={manualActions.dialog.game?.title}
+          busy={manualActions.busy}
+          problem={manualActions.formProblem}
+          onSave={manualActions.save}
+          onCancel={manualActions.cancel}
+        />
+      )}
+      {manualActions.dialog?.kind === 'remove' && (
+        <RemoveGameDialog
+          gameTitle={manualActions.dialog.game.title}
+          busy={manualActions.busy}
+          onRemove={manualActions.confirmRemove}
+          onCancel={manualActions.cancel}
+        />
+      )}
     </div>
   )
 }

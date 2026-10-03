@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import GameSection from './GameSection'
 import GameTile from './GameTile'
+import ManualGameMenu from './ManualGameMenu'
 import SearchBox from './SearchBox'
 import { COVER_KEY_REJECTED_NOTICE, showCoverKeyRejectedNotice } from './epic-cover-messages'
 import {
@@ -16,6 +17,7 @@ import type { HandOffKind } from './hand-off'
 import { screenLabel } from './navigation'
 import type { EpicLibrary } from './use-epic-library'
 import type { Favorites } from './use-favorites'
+import type { ManualActions } from './use-manual-actions'
 import type { ManualGames } from './use-manual-games'
 import type { HandOff } from './use-hand-off'
 import type { SteamLibrary } from './use-steam-library'
@@ -25,6 +27,7 @@ interface LibraryScreenProps {
   steam: SteamLibrary
   epic: EpicLibrary
   manual: ManualGames
+  manualActions: ManualActions
   handOff: HandOff
   favorites: Favorites
   // App-wide, so it survives a view switch (docs/features/library-tools.md).
@@ -59,6 +62,7 @@ function LibraryScreen({
   steam,
   epic,
   manual,
+  manualActions,
   handOff,
   favorites,
   searchQuery,
@@ -189,6 +193,34 @@ function LibraryScreen({
     manual: undefined
   }
 
+  // Adding and editing are off while the saved list can't be read (spec), so
+  // a bad read can't lead to the saved games being replaced.
+  const manualLocked = !manual.list.readable
+  const manualMenu = (id: string): React.ReactNode => {
+    const game = manual.list.games.find((saved) => saved.id === id)
+    if (game === undefined) return undefined
+    return (
+      <ManualGameMenu
+        gameTitle={game.title}
+        disabled={manualLocked}
+        onSelect={(action, opener) => manualActions.fromMenu(action, game, opener)}
+      />
+    )
+  }
+  const addGameButton = (
+    <button
+      type="button"
+      onClick={(event) => {
+        // While busy, startAdd says so instead of opening the picker.
+        if (!manualLocked) manualActions.startAdd(event.currentTarget)
+      }}
+      aria-disabled={manualLocked || manualActions.busy}
+      className={`${BUTTON} ${manualLocked ? 'cursor-default opacity-60' : ''}`}
+    >
+      Add game
+    </button>
+  )
+
   const renderCards = (cards: GameCard[], kind: HandOffKind): React.ReactNode =>
     cards.map((card) => (
       <li key={card.key} className="min-w-0">
@@ -202,6 +234,7 @@ function LibraryScreen({
           onStart={() => handOff.start(card, kind)}
           favorite={favorites.keys.has(card.key)}
           onToggleFavorite={() => favorites.toggle(card)}
+          extra={card.store === 'manual' ? manualMenu(card.id) : undefined}
         />
       </li>
     ))
@@ -256,7 +289,10 @@ function LibraryScreen({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">{screenLabel(view)}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">{screenLabel(view)}</h1>
+          {view === 'manual' && addGameButton}
+        </div>
         <SearchBox
           query={searchQuery}
           onChange={onSearchChange}
@@ -303,12 +339,16 @@ function LibraryScreen({
             // gets the "no match" line. The Manual view says nothing more when
             // its list couldn't be read: the notice above already explains,
             // and "No manual games yet" wouldn't be true.
-            view === 'manual' && !manual.list.readable ? null : (
-              <p className="text-muted">
-                {searching && allSections.installed.length > 0
-                  ? noMatchMessage('installed', shownQuery)
-                  : INSTALLED_EMPTY[view]}
-              </p>
+            view === 'manual' && manualLocked ? null : searching &&
+              allSections.installed.length > 0 ? (
+              <p className="text-muted">{noMatchMessage('installed', shownQuery)}</p>
+            ) : view === 'manual' ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-muted">{INSTALLED_EMPTY.manual}</p>
+                {addGameButton}
+              </div>
+            ) : (
+              <p className="text-muted">{INSTALLED_EMPTY[view]}</p>
             )
           }
           hasCards={sections.installed.length > 0}

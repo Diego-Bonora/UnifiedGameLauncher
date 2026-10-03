@@ -20,6 +20,9 @@ interface GameTileProps {
   onStart: () => void
   favorite: boolean
   onToggleFavorite: () => void
+  // More controls beside the card's buttons (a manual game's ⋯ menu). Put
+  // after the play button, so its peer- classes can follow the card's focus.
+  extra?: React.ReactNode
 }
 
 // A five-pointed star computed from two circles (points alternate between an
@@ -67,7 +70,8 @@ function GameTile({
   active,
   onStart,
   favorite,
-  onToggleFavorite
+  onToggleFavorite,
+  extra
 }: GameTileProps): React.JSX.Element {
   const pausedClasses = active ? 'cursor-wait opacity-60' : busy ? 'cursor-default opacity-60' : ''
   const storeName = STORES.find((store) => store.id === card.store)?.name ?? card.store
@@ -151,6 +155,7 @@ function GameTile({
       >
         <StarIcon filled={favorite} />
       </button>
+      {extra}
     </div>
   )
 }
