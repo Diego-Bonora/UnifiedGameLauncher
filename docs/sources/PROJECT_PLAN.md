@@ -239,7 +239,7 @@ The app must keep working without internet.
 | 2. Steam library | Steam sign-in + user API key, full owned library, cover art |
 | 3. Library cache + offline mode | Save library locally, load instantly, work without internet |
 | 4. Epic Games | Detect and launch installed games. Login + owned library dropped on 2026-10-02 (Epic's terms); covers via SteamGridDB instead, see docs/features/epic-covers.md |
-| 5. Other launchers | GOG, Ubisoft, Battle.net, EA: detect and launch installed games |
+| 5. Other launchers | Moved to v2 on 2026-10-03 (matches the spec's v1 scope): GOG, Ubisoft, Battle.net, EA. v1 goes from 4 straight to 6 |
 | 6. Features | Manual games, search, filters, favorites, sort by store |
 | 7. Release | Polish, privacy policy in the app, GitHub release, optional auto-updates |
 
