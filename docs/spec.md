@@ -38,7 +38,7 @@ One local user per Windows account. There are no roles or permissions tiers. Sto
 - `StoreConnection { store, status }` (Steam: public Steam ID; no store tokens are stored today)
 - `Settings`
 - Favorites: a set of card keys `<store>:<id>` (`favorites.json`)
-- `ManualGame { id, title, exePath, args, coverSource: 'steam' | 'icon', cover? }` (`manual-games.json`; `id` is a UUID made by main)
+- `ManualGame { id, title, exePath, args, coverSource: 'steam' | 'icon', steamAppId?, coverMissTitle?, iconFor? }` (`manual-games.json`; `id` is a UUID made by main)
 - Epic cover state per `AppName`: `{ lastSeenInstalled, noCoverCheckedAt? }` (prunes covers after 30 days unseen; re-asks SteamGridDB about misses after 7 days). See @docs/features/epic-covers.md
 
 Stored as JSON in `%APPDATA%\<APP_NAME>`. Tokens and API keys (Steam Web API key, SteamGridDB key) go only through Electron `safeStorage`. Cover images live in per-store folders (`covers/` for Steam, `covers-epic/` for Epic, `covers-manual/` for manual games).

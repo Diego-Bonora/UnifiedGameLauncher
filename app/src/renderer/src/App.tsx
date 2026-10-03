@@ -38,6 +38,8 @@ function App(): React.JSX.Element {
 
   // Always opens on All games; the last view is not remembered (spec).
   const [screen, setScreen] = useState<Screen>('all')
+  // One search for every game view; not saved, so each start is unfiltered.
+  const [searchQuery, setSearchQuery] = useState('')
   // Below 768 px the sidebar is a drawer over the content; this is whether
   // it's slid in. Ignored at wider sizes, where the sidebar always shows.
   const [menuOpen, setMenuOpen] = useState(false)
@@ -165,6 +167,8 @@ function App(): React.JSX.Element {
               steam={steam}
               epic={epic}
               handOff={handOff}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
               onOpenSettings={() => {
                 setScreen('settings')
                 setSettingsFromButton(true)

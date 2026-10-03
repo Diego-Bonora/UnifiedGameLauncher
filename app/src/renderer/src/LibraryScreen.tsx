@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import GameSection from './GameSection'
 import GameTile from './GameTile'
+import SearchBox from './SearchBox'
 import { COVER_KEY_REJECTED_NOTICE, showCoverKeyRejectedNotice } from './epic-cover-messages'
 import {
   buildViewSections,
@@ -10,6 +11,7 @@ import {
   type LibraryView,
   type SectionName
 } from './game-cards'
+import { countCards, filterSections, noMatchMessage, searchTerm } from './game-search'
 import type { HandOffKind } from './hand-off'
 import { screenLabel } from './navigation'
 import type { EpicLibrary } from './use-epic-library'
@@ -21,6 +23,9 @@ interface LibraryScreenProps {
   steam: SteamLibrary
   epic: EpicLibrary
   handOff: HandOff
+  // App-wide, so it survives a view switch (docs/features/library-tools.md).
+  searchQuery: string
+  onSearchChange: (query: string) => void
   onOpenSettings: () => void
 }
 
@@ -49,12 +54,14 @@ function LibraryScreen({
   steam,
   epic,
   handOff,
+  searchQuery,
+  onSearchChange,
   onOpenSettings
 }: LibraryScreenProps): React.JSX.Element {
   // Rebuilt only when a list or the view changes, not on every render (each
   // click and the end of every launch pause re-render this screen).
   const { installed: steamInstalled, owned: steamOwned } = steam
-  const sections = useMemo(
+  const allSections = useMemo(
     () =>
       buildViewSections(view, {
         steamInstalled,
@@ -63,6 +70,35 @@ function LibraryScreen({
       }),
     [view, steamInstalled, steamOwned, epic.games]
   )
+  // Filtered after the sections are built, so search never changes which
+  // section a game is in or the order. The rest of this screen (focus moves
+  // included) works on what is shown. Deferred: the box updates on every key,
+  // while the grid (thousands of tiles mounting when a search is cleared)
+  // follows when React has time, so typing never stutters.
+  const shownQuery = useDeferredValue(searchQuery)
+  const sections = useMemo(() => filterSections(allSections, shownQuery), [allSections, shownQuery])
+  const searching = searchTerm(shownQuery) !== ''
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Ctrl+F jumps to the search box. Only while a game view is open (this
+  // screen is unmounted in Settings). Cmd+F as well, for dev on a Mac.
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent): void => {
+      // `code` is the physical key, so Ctrl+F works on any keyboard layout
+      // (a Russian layout reports key "а"); `key` covers layouts that move F.
+      const isF = event.code === 'KeyF' || event.key.toLowerCase() === 'f'
+      if (!isF || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+      // An open dialog or menu keeps focus (spec): Ctrl+F does nothing there.
+      // No dialogs exist yet; manual games' Add/Rename/Remove and ⋯ menu must
+      // use these roles for this to hold.
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return
+      event.preventDefault()
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
   // The Library section below is Steam's: Steam is the only store with an
   // owned library today. A second store with `hasLibrary` needs its own
   // loading, notices and empty states here, not Steam's.
@@ -71,6 +107,11 @@ function LibraryScreen({
   const includesEpic = view === 'all' || view === 'epic'
   const installedLoading =
     (includesSteam && !steam.installedLoaded) || (includesEpic && !epic.loaded)
+  // Also while the first connection read runs (so a connected user never sees
+  // the "Connect Steam" line flash by), and until the installed list is in:
+  // before that every owned game would show here as "Install", including the
+  // ones already on this PC.
+  const libraryLoading = !steam.connectionLoaded || steam.loadingOwned || !steam.installedLoaded
 
   // Keyboard focus that would be lost when a refresh moves the focused card to
   // the other section (React then unmounts it) or removes it. Tracked through
@@ -186,7 +227,23 @@ function LibraryScreen({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">{screenLabel(view)}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold">{screenLabel(view)}</h1>
+        <SearchBox
+          query={searchQuery}
+          onChange={onSearchChange}
+          matchCount={
+            // Only what is on screen: skeletons hide cards a section already
+            // holds, and a deferred grid may still show the previous query.
+            installedLoading ||
+            (hasLibrary && includesSteam && libraryLoading) ||
+            shownQuery !== searchQuery
+              ? null
+              : countCards(sections)
+          }
+          inputRef={searchInputRef}
+        />
+      </div>
 
       {includesEpic && showCoverKeyRejectedNotice(epic.coverStatus) && (
         <div className="flex flex-wrap items-center gap-2">
@@ -201,7 +258,15 @@ function LibraryScreen({
           title="Installed"
           headingRef={installedHeadingRef}
           loading={installedLoading}
-          empty={<p className="text-muted">{INSTALLED_EMPTY[view]}</p>}
+          empty={
+            // A search can't fix an empty list, so only a list that had games
+            // gets the "no match" line.
+            <p className="text-muted">
+              {searching && allSections.installed.length > 0
+                ? noMatchMessage('installed', shownQuery)
+                : INSTALLED_EMPTY[view]}
+            </p>
+          }
           hasCards={sections.installed.length > 0}
         >
           {renderCards(sections.installed, 'launch')}
@@ -214,13 +279,15 @@ function LibraryScreen({
             id={`${view}-library`}
             title="Library"
             headingRef={libraryHeadingRef}
-            // Also while the first connection read runs (so a connected user
-            // never sees the "Connect Steam" line flash by), and until the
-            // installed list is in: before that every owned game would show
-            // here as "Install", including the ones already on this PC.
-            loading={!steam.connectionLoaded || steam.loadingOwned || !steam.installedLoaded}
+            loading={libraryLoading}
             notices={steam.showOwned ? libraryNotices : null}
-            empty={libraryEmpty}
+            empty={
+              steam.showOwned && searching && (allSections.library?.length ?? 0) > 0 ? (
+                <p className="text-muted">{noMatchMessage('library', shownQuery)}</p>
+              ) : (
+                libraryEmpty
+              )
+            }
             hasCards={sections.library.length > 0}
           >
             {renderCards(sections.library, 'install')}
