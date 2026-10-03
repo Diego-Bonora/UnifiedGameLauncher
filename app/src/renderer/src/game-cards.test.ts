@@ -40,7 +40,8 @@ const data: LibraryData = {
   epicInstalled: [
     epic('Sugar', 'Rocket League®', 'app-cover://epic/Sugar'),
     epic('Bloons', 'Bloons TD 6')
-  ]
+  ],
+  favorites: new Set()
 }
 
 const titles = (cards: { title: string }[] | null): string[] | null =>
@@ -99,7 +100,8 @@ describe('buildViewSections', () => {
     const clash: LibraryData = {
       steamInstalled: [installed('123', 'Same Id')],
       steamOwned: null,
-      epicInstalled: [epic('123', 'Same Id')]
+      epicInstalled: [epic('123', 'Same Id')],
+      favorites: new Set()
     }
     const keys = buildViewSections('all', clash).installed.map((card) => card.key)
     expect(keys.sort()).toEqual(['epic:123', 'steam:123'])
@@ -109,7 +111,8 @@ describe('buildViewSections', () => {
     const mixed: LibraryData = {
       steamInstalled: [installed('2', 'alpha'), installed('1', 'Beta')],
       steamOwned: null,
-      epicInstalled: [epic('A', 'Alpha')]
+      epicInstalled: [epic('A', 'Alpha')],
+      favorites: new Set()
     }
     const once = buildViewSections('all', mixed).installed.map((card) => card.key)
     expect(once).toEqual(['epic:A', 'steam:2', 'steam:1'])
@@ -118,6 +121,35 @@ describe('buildViewSections', () => {
       steamInstalled: [...mixed.steamInstalled].reverse()
     }
     expect(buildViewSections('all', reversed).installed.map((card) => card.key)).toEqual(once)
+  })
+})
+
+describe('buildViewSections: favorites', () => {
+  it('puts starred games first in each section, then by title', () => {
+    const starred = { ...data, favorites: new Set(['epic:Bloons', 'steam:570', 'steam:999']) }
+    const sections = buildViewSections('all', starred)
+    expect(titles(sections.installed)).toEqual([
+      'Bloons TD 6',
+      'Family Shared Game',
+      'Rocket League®',
+      'Team Fortress 2'
+    ])
+    expect(titles(sections.library)).toEqual(['Dota 2', 'Counter-Strike'])
+  })
+
+  it('sorts several starred games by title among themselves', () => {
+    const starred = { ...data, favorites: new Set(['steam:440', 'epic:Sugar']) }
+    expect(titles(buildViewSections('all', starred).installed)).toEqual([
+      'Rocket League®',
+      'Team Fortress 2',
+      'Bloons TD 6',
+      'Family Shared Game'
+    ])
+  })
+
+  it('ignores a star for a game that is not shown', () => {
+    const starred = { ...data, favorites: new Set(['steam:12345', 'gog:1']) }
+    expect(buildViewSections('all', starred)).toEqual(buildViewSections('all', data))
   })
 })
 

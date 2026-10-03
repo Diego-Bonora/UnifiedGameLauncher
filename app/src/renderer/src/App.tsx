@@ -5,6 +5,7 @@ import SettingsScreen from './SettingsScreen'
 import Sidebar from './Sidebar'
 import type { Screen } from './navigation'
 import { useEpicLibrary } from './use-epic-library'
+import { useFavorites } from './use-favorites'
 import { useHandOff } from './use-hand-off'
 import { useSteamLibrary } from './use-steam-library'
 
@@ -32,6 +33,7 @@ function App(): React.JSX.Element {
   // (docs/features/library-layout.md, "App-wide state").
   const steam = useSteamLibrary()
   const epic = useEpicLibrary()
+  const favorites = useFavorites()
   const handOff = useHandOff((store) => {
     if (store === 'epic') epic.reloadGames()
   })
@@ -153,6 +155,11 @@ function App(): React.JSX.Element {
               {handOff.feedback.message}
             </p>
           )}
+          {favorites.problem !== null && (
+            <p role="alert" className="text-danger">
+              {favorites.problem}
+            </p>
+          )}
           {handOff.feedback?.tone === 'info' && (
             <p role="status" className="text-sm text-muted">
               {handOff.feedback.message}
@@ -167,6 +174,7 @@ function App(): React.JSX.Element {
               steam={steam}
               epic={epic}
               handOff={handOff}
+              favorites={favorites}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               onOpenSettings={() => {

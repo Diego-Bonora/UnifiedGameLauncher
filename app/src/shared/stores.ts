@@ -14,3 +14,10 @@ export const STORES = [
 ] as const satisfies readonly { id: string; name: string; hasLibrary: boolean }[]
 
 export type StoreId = (typeof STORES)[number]['id']
+
+// How a game is identified across stores: `<store>:<id>`. Ids from different
+// stores can collide, so the bare id never identifies a game. The renderer's
+// card keys and main's saved favorites both use this one spelling.
+export function gameKey(store: StoreId, id: string): string {
+  return `${store}:${id}`
+}

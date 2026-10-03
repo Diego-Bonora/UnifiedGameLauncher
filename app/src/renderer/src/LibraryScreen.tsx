@@ -15,6 +15,7 @@ import { countCards, filterSections, noMatchMessage, searchTerm } from './game-s
 import type { HandOffKind } from './hand-off'
 import { screenLabel } from './navigation'
 import type { EpicLibrary } from './use-epic-library'
+import type { Favorites } from './use-favorites'
 import type { HandOff } from './use-hand-off'
 import type { SteamLibrary } from './use-steam-library'
 
@@ -23,6 +24,7 @@ interface LibraryScreenProps {
   steam: SteamLibrary
   epic: EpicLibrary
   handOff: HandOff
+  favorites: Favorites
   // App-wide, so it survives a view switch (docs/features/library-tools.md).
   searchQuery: string
   onSearchChange: (query: string) => void
@@ -54,6 +56,7 @@ function LibraryScreen({
   steam,
   epic,
   handOff,
+  favorites,
   searchQuery,
   onSearchChange,
   onOpenSettings
@@ -66,9 +69,10 @@ function LibraryScreen({
       buildViewSections(view, {
         steamInstalled,
         steamOwned,
-        epicInstalled: epic.games
+        epicInstalled: epic.games,
+        favorites: favorites.keys
       }),
-    [view, steamInstalled, steamOwned, epic.games]
+    [view, steamInstalled, steamOwned, epic.games, favorites.keys]
   )
   // Filtered after the sections are built, so search never changes which
   // section a game is in or the order. The rest of this screen (focus moves
@@ -124,7 +128,9 @@ function LibraryScreen({
   useEffect(() => {
     const handleFocusIn = (event: FocusEvent): void => {
       const target = event.target instanceof HTMLElement ? event.target : null
-      const key = target?.dataset['cardKey']
+      // The card's wrapper carries the key, so its play button and its star
+      // both count as "focus on this card".
+      const key = target?.closest<HTMLElement>('[data-card-key]')?.dataset['cardKey']
       const section = target?.closest('[data-section]')?.getAttribute('data-section')
       lastFocusedRef.current =
         key !== undefined && (section === 'installed' || section === 'library')
@@ -137,9 +143,13 @@ function LibraryScreen({
     // that was removed is not connected any more, and stays remembered.
     const handleFocusOut = (event: FocusEvent): void => {
       const target = event.target instanceof HTMLElement ? event.target : null
-      if (target?.dataset['cardKey'] === undefined) return
+      const tile = target?.closest<HTMLElement>('[data-card-key]')
+      const key = tile?.dataset['cardKey']
+      if (target === null || tile === null || tile === undefined || key === undefined) return
       setTimeout(() => {
-        if (target.isConnected && lastFocusedRef.current?.key === target.dataset['cardKey']) {
+        // Moving between a card's play button and its star stays on the card.
+        if (tile.contains(document.activeElement)) return
+        if (target.isConnected && lastFocusedRef.current?.key === key) {
           lastFocusedRef.current = null
         }
       }, 0)
@@ -174,6 +184,8 @@ function LibraryScreen({
           busy={handOff.activeKey !== null}
           active={handOff.activeKey === card.key}
           onStart={() => handOff.start(card, kind)}
+          favorite={favorites.keys.has(card.key)}
+          onToggleFavorite={() => favorites.toggle(card)}
         />
       </li>
     ))

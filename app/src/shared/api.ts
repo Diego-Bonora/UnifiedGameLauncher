@@ -5,6 +5,7 @@ import type {
   EpicLaunchResult,
   EpicSetCoverKeyResult
 } from './ipc/epic-channels'
+import type { FavoriteSetResult } from './ipc/favorites-channels'
 import type {
   SteamCachedLibrary,
   SteamConnectionStatus,
@@ -12,6 +13,7 @@ import type {
   SteamInstalledResult,
   SteamLibraryResult
 } from './ipc/steam-channels'
+import type { StoreId } from './stores'
 
 // The complete surface the renderer may call. Each milestone adds named,
 // typed functions here (backed by zod-validated IPC in main), never a
@@ -55,5 +57,13 @@ export interface RendererApi {
     // New covers are on disk or the cover status changed: re-read both.
     // Returns a function that stops listening.
     onCoversChanged: (callback: () => void) => () => void
+  }
+  // Starred games, as `<store>:<id>` keys (docs/features/library-tools.md).
+  favorites: {
+    // Never rejects; an unreadable file reads as the last list main read.
+    list: () => Promise<string[]>
+    // Resolves for every expected outcome, with what main really has saved;
+    // rejects only for a malformed request.
+    set: (store: StoreId, id: string, favorite: boolean) => Promise<FavoriteSetResult>
   }
 }

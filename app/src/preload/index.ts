@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { RendererApi } from '@shared/api'
 import { EPIC_CHANNELS } from '@shared/ipc/epic-channels'
+import { FAVORITES_CHANNELS } from '@shared/ipc/favorites-channels'
 import { STEAM_CHANNELS } from '@shared/ipc/steam-channels'
 
 // Deliberately not exposing Electron's generic ipcRenderer: the renderer gets
@@ -42,6 +43,11 @@ const api: RendererApi = {
         ipcRenderer.removeListener(EPIC_CHANNELS.coversChanged, listener)
       }
     }
+  },
+  favorites: {
+    list: () => ipcRenderer.invoke(FAVORITES_CHANNELS.list),
+    set: (store, id, favorite) =>
+      ipcRenderer.invoke(FAVORITES_CHANNELS.set, { store, id, favorite })
   }
 }
 

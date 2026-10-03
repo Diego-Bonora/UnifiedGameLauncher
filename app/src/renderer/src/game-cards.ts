@@ -1,6 +1,6 @@
 import type { EpicInstalledGame } from '@shared/ipc/epic-channels'
 import type { SteamInstalledGame, SteamOwnedGame } from '@shared/ipc/steam-channels'
-import { STORES, type StoreId } from '@shared/stores'
+import { STORES, gameKey, type StoreId } from '@shared/stores'
 
 // Pure logic for the game views (docs/features/library-layout.md), kept out of
 // the components so it can be unit tested.
@@ -33,10 +33,12 @@ export interface LibraryData {
   // still loading): installed Steam games then show placeholders.
   steamOwned: SteamOwnedGame[] | null
   epicInstalled: EpicInstalledGame[]
+  // Starred card keys: these sort first in their section.
+  favorites: ReadonlySet<string>
 }
 
 export function cardKey(store: StoreId, id: string): string {
-  return `${store}:${id}`
+  return gameKey(store, id)
 }
 
 function card(store: StoreId, id: string, title: string, coverUrl: string | null): GameCard {
@@ -52,6 +54,14 @@ const titleCollator = new Intl.Collator(undefined, { sensitivity: 'base' })
 // renders.
 function byTitle(a: GameCard, b: GameCard): number {
   return titleCollator.compare(a.title, b.title) || (a.key < b.key ? -1 : 1)
+}
+
+// Starred games first (docs/features/library-tools.md, "Favorites"), each
+// group by title.
+function sortCards(cards: GameCard[], favorites: ReadonlySet<string>): GameCard[] {
+  return cards.sort(
+    (a, b) => Number(favorites.has(b.key)) - Number(favorites.has(a.key)) || byTitle(a, b)
+  )
 }
 
 function inView(view: LibraryView, store: StoreId): boolean {
@@ -82,7 +92,9 @@ export function buildViewSections(view: LibraryView, data: LibraryData): ViewSec
     }
   }
 
-  if (!viewHasLibrary(view)) return { installed: installed.sort(byTitle), library: null }
+  if (!viewHasLibrary(view)) {
+    return { installed: sortCards(installed, data.favorites), library: null }
+  }
 
   // Steam is the only store with an owned library today. Checked per store
   // like Installed above, so a second store with a library can't end up
@@ -93,7 +105,10 @@ export function buildViewSections(view: LibraryView, data: LibraryData): ViewSec
         .map((game) => card('steam', game.appId, game.title, game.coverUrl))
     : []
 
-  return { installed: installed.sort(byTitle), library: library.sort(byTitle) }
+  return {
+    installed: sortCards(installed, data.favorites),
+    library: sortCards(library, data.favorites)
+  }
 }
 
 export type SectionName = 'installed' | 'library'
