@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { epicLaunchMessage, type EpicLaunchProblem } from './epic-launch-messages'
+import type { EpicLaunchFailure } from '@shared/ipc/epic-channels'
+import { epicLaunchMessage } from './epic-launch-messages'
 
-const problems: EpicLaunchProblem[] = ['notInstalled', 'launcherUnavailable', 'failed']
+const problems: EpicLaunchFailure[] = ['notInstalled', 'launcherUnavailable']
 
 describe('epicLaunchMessage', () => {
   it('has a distinct, non-empty message for every problem', () => {

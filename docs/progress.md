@@ -3,10 +3,10 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4 are done and, by the user's report, work on Windows (CI installer from run 37133460579, 2026-10-03). Installed Epic games launch and show SteamGridDB posters with the user's own key; no Epic login or Epic owned library (Epic's terms, 2026-10-02). 432 tests.
+Milestones 0–4 are done and, by the user's report, work on Windows (CI installer from run 37133460579, 2026-10-03). Installed Epic games launch and show SteamGridDB posters with the user's own key; no Epic login or Epic owned library (Epic's terms, 2026-10-02). 476 tests.
 
 ## In Progress
-Library layout redesign (spec in `docs/features/library-layout.md`): sidebar (All games / per store / Settings), full-width responsive grid, Installed + Library (not installed) sections, Steam install from the card, Settings screen. Spec reviewed. Step 1 of 4 done (main + shared: store list, Steam installed scan reports unreadable libraries, Steam launch/install as data, `steam:install` channel, Epic result renamed to `{ accepted }`). Next: Step 2, app-wide renderer state + view helper. Check in Step 2: a leftover Steam registry key after uninstall makes every read "unreadable", so "keep last seen" holds those games for the session.
+Library layout redesign (spec in `docs/features/library-layout.md`): sidebar (All games / per store / Settings), full-width responsive grid, Installed + Library (not installed) sections, Steam install from the card, Settings screen. Spec reviewed. Step 1 of 4 done (main + shared: store list, Steam installed scan reports unreadable libraries, Steam launch/install as data, `steam:install` channel, Epic result renamed to `{ accepted }`). Step 2 done (renderer: `use-steam-library` / `use-epic-library` / `use-hand-off` app-wide hooks; tested helpers `steam-installed.ts`, `game-cards.ts`, `hand-off.ts`; screen unchanged apart from sorted Steam installed list and one shared message line). Next: Step 3, sidebar + Settings screen. Accepted: a leftover Steam registry key after uninstall makes every read "unreadable", so the old games stay for that session.
 Windows checks pending: `SteamPath` spelling, `reg` exit code 1 for a missing key, whether `openExternal` rejects when nothing handles `steam://` (also Epic's `launcherUnavailable`).
 
 ## Next Up

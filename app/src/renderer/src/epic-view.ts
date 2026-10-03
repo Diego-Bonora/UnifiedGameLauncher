@@ -1,5 +1,4 @@
-import type { EpicInstalledGame, EpicLaunchResult } from '@shared/ipc/epic-channels'
-import { epicLaunchMessage } from './epic-launch-messages'
+import type { EpicInstalledGame } from '@shared/ipc/epic-channels'
 
 // Pure logic for the Epic section, kept out of the component so it can be unit
 // tested (the renderer has no component test setup), like library-view.ts.
@@ -37,31 +36,4 @@ export function nextEpicGames(
         : game
     )
   )
-}
-
-export type LaunchOutcome = EpicLaunchResult | 'failed'
-
-export interface LaunchFeedback {
-  message: string
-  // 'info' is progress ("Starting..."), 'danger' is something to act on.
-  tone: 'info' | 'danger'
-  // The list was out of date, so it should be read again.
-  refreshList: boolean
-}
-
-// Turns what the launch call returned into what the user is told. A successful
-// hand-off still gets a message: the game window can take a while to appear,
-// and with no sign of progress the natural reaction is to click again.
-export function feedbackForLaunch(title: string, outcome: LaunchOutcome): LaunchFeedback {
-  if (outcome === 'failed') {
-    return { message: epicLaunchMessage('failed'), tone: 'danger', refreshList: false }
-  }
-  if (outcome.accepted) {
-    return { message: `Starting ${title}…`, tone: 'info', refreshList: false }
-  }
-  return {
-    message: epicLaunchMessage(outcome.reason),
-    tone: 'danger',
-    refreshList: outcome.reason === 'notInstalled'
-  }
 }
