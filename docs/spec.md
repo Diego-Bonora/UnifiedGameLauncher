@@ -9,7 +9,7 @@ UnifiedGameLauncher is a Windows desktop app that shows every game you own on St
 One local user per Windows account. There are no roles or permissions tiers. Store connections are described in @docs/features/auth-roles.md.
 
 ## Core Features (v1)
-- Unified library with cover art across Steam and Epic
+- Unified library with cover art across Steam and Epic: a sidebar with All games and one view per store, each split into an Installed section and a Library section (not installed) in a full-width poster grid, with store settings on their own screen. See @docs/features/library-layout.md
 - Installed-game detection (Steam local files, Epic launcher manifests)
 - Launch and install through official launchers via allow-listed URL protocols
 - Steam sign-in (OpenID) plus user-supplied Steam Web API key for the owned library

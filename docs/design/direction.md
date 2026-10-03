@@ -21,7 +21,7 @@ Store badges use each store's own color, small only. The violet accent is delibe
 Display **Sora**, body **Manrope** (confirmed). Fonts are bundled locally, never loaded from a CDN, because the app must work offline.
 
 ### Spacing & Layout
-Left sidebar (All / Installed / Favorites / per-store / Settings) plus a poster grid of 2:3 covers. Generous gaps, 8px spacing scale.
+A left sidebar (All games / one entry per store / Settings at the bottom; it collapses behind a ☰ button below 768 px) next to a full-width grid of 2:3 posters, split into Installed and Library (not installed) sections. Columns follow the window width. Milestone 6 filters such as Favorites can join the sidebar later. Details: @docs/features/library-layout.md. Generous gaps, 8px spacing scale.
 
 ### Component Style
 8-12px radius, subtle elevation, no hard borders. Covers lift on hover and get an accent focus ring. Skeleton loaders while loading. A small "Offline — showing saved library" pill when offline.

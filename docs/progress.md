@@ -3,19 +3,21 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestone 4 is done on macOS: installed Epic games launch and show SteamGridDB posters with the user's own key. No Epic login or Epic owned library (Epic's terms, 2026-10-02). M2–M4 are verified on macOS only, never on Windows. All commits pushed to `origin/main` (latest `981074c`); 432 tests.
+Milestones 0–4 are done and, by the user's report, work on Windows (CI installer from run 37133460579, 2026-10-03). Installed Epic games launch and show SteamGridDB posters with the user's own key; no Epic login or Epic owned library (Epic's terms, 2026-10-02). 432 tests.
 
 ## In Progress
-Nothing active.
+Library layout redesign (spec in `docs/features/library-layout.md`): sidebar (All games / per store / Settings), full-width responsive grid, Installed + Library (not installed) sections, Steam install from the card, Settings screen. Spec written, awaiting review; no code yet.
 
 ## Next Up
-Run CI "Build installer" and test M2–M4 on the Windows PC. Then Milestone 6 (manual games, search, filters, favorites, sort by store). Milestone 5 (other launchers) moved to v2.
+Build the library layout. Then Milestone 6 (manual games, search, filters, favorites, sort by store). Milestone 5 (other launchers) moved to v2.
 
 ---
 
 ## 2026-10-03 (docs: scope fix)
 **Decided:** Milestone 5 (GOG, Ubisoft, Battle.net, EA) moves to v2, matching spec.md's Out of Scope list; the roadmap in `docs/sources/PROJECT_PLAN.md` said otherwise. Milestone numbers stay (spec refers to Milestone 7), so v1 goes 4 → 6 → 7.
 **Fixed:** Current State said the commits were not pushed; `main` already matched `origin/main`.
+**Windows test (user, by hand, CI run 37133460579):** M2–M4 "everything seems to be working", including the Bloons TD 6 launch (opaque GUID AppName), so that open item is closed. No detailed checklist was recorded.
+**User feedback:** the UI doesn't fit the window (page capped at `max-w-6xl`), installed Steam games are an old list, sections are scattered. This led to the library layout spec.
 
 ## 2026-10-02 (Epic covers from SteamGridDB, replacing Epic login)
 **Decided:** Epic's Store EULA (2025-01-15) and ToS (2026-09-10) authorize no third-party clients; a library login means acting as Epic's launcher (EULA §2(c),(e)) and risks the user's account. So: no Epic login, covers from SteamGridDB with a user key, no owned-not-installed games, placeholder when no match (no title search), focus retries only after a failed sync. Spec: `docs/features/epic-covers.md`.
