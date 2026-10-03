@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
 export interface LibraryCoverArtHttpDeps {
-  fetchStoreItems: (appIds: string[]) => Promise<unknown>
+  // `signal` cancels the request early (on top of the timeout below).
+  fetchStoreItems: (appIds: string[], signal?: AbortSignal) => Promise<unknown>
 }
 
 // No default overall timeout on global fetch — see owned-games.ts.
@@ -17,7 +18,7 @@ const FETCH_TIMEOUT_MS = 15_000
 // isn't named "library_600x900.jpg" at all (confirmed: some apps use
 // entirely different filenames, e.g. "portrait.png"). No API key needed.
 const realHttp: LibraryCoverArtHttpDeps = {
-  fetchStoreItems: async (appIds) => {
+  fetchStoreItems: async (appIds, signal) => {
     const inputJson = JSON.stringify({
       ids: appIds.map((appId) => ({ appid: Number(appId) })),
       context: { language: 'english', country_code: 'US' },
@@ -26,7 +27,12 @@ const realHttp: LibraryCoverArtHttpDeps = {
     const params = new URLSearchParams({ input_json: inputJson })
     const response = await fetch(
       `https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?${params.toString()}`,
-      { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
+      {
+        signal:
+          signal === undefined
+            ? AbortSignal.timeout(FETCH_TIMEOUT_MS)
+            : AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)])
+      }
     )
     if (!response.ok) {
       throw new Error(`Steam Store Browse API responded with ${response.status}`)
@@ -108,29 +114,43 @@ export async function runWithConcurrencyLimit(
   await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker))
 }
 
-// Looks up the real cover-art URL per appId. An appId absent from the
-// returned record means no cover art is available (or the app lacks a
-// library_capsule asset entirely) — never an error the caller has to
-// handle, matching this app's "missing art degrades quietly" convention.
-export async function getLibraryCoverArtUrls(
+export interface LibraryCoverArtLookup {
+  // The real cover-art URL per appId that has one.
+  urls: Record<string, string>
+  // appIds whose batch failed (network blip, rate limit): unknown, not "no
+  // cover", so a caller that remembers lookups should ask again later.
+  failedIds: string[]
+}
+
+// Looks up the real cover-art URL per appId. An appId that was asked about
+// and is absent from `urls` has no cover art (or lacks a library_capsule
+// asset entirely) — never an error the caller has to handle, matching this
+// app's "missing art degrades quietly" convention.
+export async function lookUpLibraryCoverArt(
   appIds: string[],
-  http: LibraryCoverArtHttpDeps = realHttp
-): Promise<Record<string, string>> {
+  http: LibraryCoverArtHttpDeps = realHttp,
+  signal?: AbortSignal
+): Promise<LibraryCoverArtLookup> {
   const result: Record<string, string> = {}
+  const failedIds: string[] = []
 
   const tasks = chunk(appIds, CHUNK_SIZE).map((batch) => async () => {
     let raw: unknown
     try {
-      raw = await http.fetchStoreItems(batch)
+      raw = await http.fetchStoreItems(batch, signal)
     } catch (err) {
       // One failed batch (network blip, rate limit) shouldn't blank out
       // cover art for every other batch that succeeded.
       console.warn('[steam] could not fetch a batch of library cover art:', err)
+      failedIds.push(...batch)
       return
     }
 
     const parsed = storeItemsResponseSchema.safeParse(raw)
-    if (!parsed.success) return
+    if (!parsed.success) {
+      failedIds.push(...batch)
+      return
+    }
 
     for (const item of parsed.data.response.store_items ?? []) {
       const itemResult = storeItemSchema.safeParse(item)
@@ -144,5 +164,14 @@ export async function getLibraryCoverArtUrls(
 
   await runWithConcurrencyLimit(tasks, MAX_CONCURRENT_CHUNKS)
 
-  return result
+  return { urls: result, failedIds }
+}
+
+// The owned library only needs the URLs: a failed batch just leaves those
+// games on placeholders until the next library load asks again.
+export async function getLibraryCoverArtUrls(
+  appIds: string[],
+  http: LibraryCoverArtHttpDeps = realHttp
+): Promise<Record<string, string>> {
+  return (await lookUpLibraryCoverArt(appIds, http)).urls
 }

@@ -29,10 +29,26 @@ export function libraryKey(path: string): string {
   return path.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
 }
 
+// How the installed list gets its covers, kept as an interface so this file
+// stays free of the cover cache's Electron and file-system imports.
+export interface SteamInstalledCovers {
+  // Local app-cover:// URL per appId whose cover is saved.
+  urlsFor: (appIds: string[]) => Promise<Map<string, string>>
+  // Told about every read, so missing covers can be fetched in the
+  // background and the owned sync's cleanup knows what is installed.
+  onListed: (appIds: string[]) => void
+}
+
+const NO_COVERS: SteamInstalledCovers = {
+  urlsFor: async () => new Map(),
+  onListed: () => undefined
+}
+
 // Never rejects: a rejected IPC call would reach the renderer as Electron's
 // prefixed raw error.
 export async function listSteamInstalledGames(
-  scan: () => Promise<SteamInstallScan>
+  scan: () => Promise<SteamInstallScan>,
+  covers: SteamInstalledCovers = NO_COVERS
 ): Promise<SteamInstalledResult> {
   let result: SteamInstallScan
   try {
@@ -40,6 +56,18 @@ export async function listSteamInstalledGames(
   } catch (err) {
     console.warn('[steam] could not detect installed games:', err)
     return NOTHING_SEEN
+  }
+  const scannedIds = result.libraries.flatMap((library) =>
+    library.games.map((game) => game.storeGameId)
+  )
+  let coverUrls: Map<string, string>
+  try {
+    coverUrls = await covers.urlsFor(scannedIds)
+  } catch (err) {
+    // Covers are decoration: the list still shows, with placeholders (and
+    // the renderer keeps any cover it already showed).
+    console.warn('[steam] could not look up saved covers:', err)
+    coverUrls = new Map()
   }
   // A malformed entry is dropped rather than failing the whole list, matching
   // the parser's rule that one bad file must not hide every other game.
@@ -49,7 +77,8 @@ export async function listSteamInstalledGames(
         appId: game.storeGameId,
         title: game.title,
         installPath: game.installPath,
-        libraryPath: libraryKey(library.path)
+        libraryPath: libraryKey(library.path),
+        coverUrl: coverUrls.get(game.storeGameId) ?? null
       })
       if (!parsed.success) {
         console.warn('[steam] dropped a malformed installed game:', parsed.error.message)
@@ -58,6 +87,7 @@ export async function listSteamInstalledGames(
       return [parsed.data]
     })
   )
+  covers.onListed(games.map((game) => game.appId))
   return {
     games,
     unreadableLibraries: result.libraries

@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { SteamInstalledGame, SteamInstalledResult } from '@shared/ipc/steam-channels'
 import { nextSteamInstalled } from './steam-installed'
 
-const game = (appId: string, libraryPath: string): SteamInstalledGame => ({
+const game = (
+  appId: string,
+  libraryPath: string,
+  coverUrl: string | null = null
+): SteamInstalledGame => ({
   appId,
   title: `Game ${appId}`,
   installPath: `${libraryPath}\\steamapps\\common\\${appId}`,
-  libraryPath
+  libraryPath,
+  coverUrl
 })
 
 const onC = game('10', 'c:\\steam')
@@ -53,5 +58,16 @@ describe('nextSteamInstalled', () => {
   it('keeps the list when the call itself failed, and shows nothing on a failed first read', () => {
     expect(nextSteamInstalled([onC], 'failed')).toEqual([onC])
     expect(nextSteamInstalled(null, 'failed')).toEqual([])
+  })
+
+  it('keeps a shown cover when a later read comes back without it', () => {
+    const withCover = game('10', 'c:\\steam', 'app-cover://covers/10')
+    const next = nextSteamInstalled([withCover], read([onC]))
+    expect(next[0]?.coverUrl).toBe('app-cover://covers/10')
+  })
+
+  it('takes a cover as soon as a read has one', () => {
+    const withCover = game('10', 'c:\\steam', 'app-cover://covers/10')
+    expect(nextSteamInstalled([onC], read([withCover]))[0]?.coverUrl).toBe('app-cover://covers/10')
   })
 })

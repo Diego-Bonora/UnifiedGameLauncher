@@ -3,11 +3,16 @@ import type { EpicInstalledGame } from '@shared/ipc/epic-channels'
 import type { SteamInstalledGame, SteamOwnedGame } from '@shared/ipc/steam-channels'
 import { buildViewSections, focusAfterChange, viewHasLibrary, type LibraryData } from './game-cards'
 
-const installed = (appId: string, title: string): SteamInstalledGame => ({
+const installed = (
+  appId: string,
+  title: string,
+  coverUrl: string | null = null
+): SteamInstalledGame => ({
   appId,
   title,
   installPath: `c:\\steam\\steamapps\\common\\${title}`,
-  libraryPath: 'c:\\steam'
+  libraryPath: 'c:\\steam',
+  coverUrl
 })
 const owned = (appId: string, title: string): SteamOwnedGame => ({
   appId,
@@ -113,6 +118,30 @@ describe('buildViewSections', () => {
       steamInstalled: [...mixed.steamInstalled].reverse()
     }
     expect(buildViewSections('all', reversed).installed.map((card) => card.key)).toEqual(once)
+  })
+})
+
+describe('buildViewSections: covers for installed games that are not owned', () => {
+  it("uses main's own cover when the owned list has none for the game", () => {
+    const freeGame = installed('230410', 'Warframe', 'app-cover://covers/230410')
+    const sections = buildViewSections('steam', { ...data, steamInstalled: [freeGame] })
+    expect(sections.installed[0]?.coverUrl).toBe('app-cover://covers/230410')
+  })
+
+  it("prefers the owned library's cover when both exist", () => {
+    const tf2 = installed('440', 'Team Fortress 2', 'app-cover://covers/440-own')
+    const sections = buildViewSections('steam', { ...data, steamInstalled: [tf2] })
+    expect(sections.installed[0]?.coverUrl).toBe('app-cover://covers/440')
+  })
+
+  it('uses it before any owned list exists too', () => {
+    const freeGame = installed('230410', 'Warframe', 'app-cover://covers/230410')
+    const sections = buildViewSections('steam', {
+      ...data,
+      steamOwned: null,
+      steamInstalled: [freeGame]
+    })
+    expect(sections.installed[0]?.coverUrl).toBe('app-cover://covers/230410')
   })
 })
 

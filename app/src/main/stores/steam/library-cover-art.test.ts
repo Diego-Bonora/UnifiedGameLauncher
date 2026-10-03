@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getLibraryCoverArtUrls, type LibraryCoverArtHttpDeps } from './library-cover-art'
+import {
+  getLibraryCoverArtUrls,
+  lookUpLibraryCoverArt,
+  type LibraryCoverArtHttpDeps
+} from './library-cover-art'
 
 function fakeHttp(response: unknown): LibraryCoverArtHttpDeps {
   return { fetchStoreItems: async () => response }
@@ -116,5 +120,45 @@ describe('getLibraryCoverArtUrls', () => {
       }
     }
     await expect(getLibraryCoverArtUrls(['220'], http)).resolves.toEqual({})
+  })
+})
+
+describe('lookUpLibraryCoverArt', () => {
+  it('tells "no cover" apart from "could not ask"', async () => {
+    let call = 0
+    const http: LibraryCoverArtHttpDeps = {
+      fetchStoreItems: async () => {
+        call++
+        if (call === 1) {
+          // Asked and answered: 10 has a cover, 20 has none.
+          return {
+            response: {
+              store_items: [
+                {
+                  appid: 10,
+                  assets: {
+                    asset_url_format: 'steam/apps/10/${FILENAME}',
+                    library_capsule: 'c.jpg'
+                  }
+                },
+                { appid: 20 }
+              ]
+            }
+          }
+        }
+        throw new Error('offline')
+      }
+    }
+    // 150 ids: two batches of 100 and 50; the second one fails.
+    const ids = ['10', '20', ...Array.from({ length: 148 }, (_, i) => String(1000 + i))]
+    const lookup = await lookUpLibraryCoverArt(ids, http)
+    expect(Object.keys(lookup.urls)).toEqual(['10'])
+    expect(lookup.failedIds).toEqual(ids.slice(100))
+    expect(lookup.failedIds).not.toContain('20')
+  })
+
+  it('counts an unexpected response shape as "could not ask"', async () => {
+    const lookup = await lookUpLibraryCoverArt(['10'], fakeHttp({ nope: true }))
+    expect(lookup).toEqual({ urls: {}, failedIds: ['10'] })
   })
 })

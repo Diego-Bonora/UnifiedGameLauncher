@@ -39,6 +39,11 @@ export interface SteamLibrary {
   // Installed on this PC. `installedLoaded` is false until the first read.
   installed: SteamInstalledGame[]
   installedLoaded: boolean
+  // Changes whenever main says new covers were saved. A Steam cover that
+  // failed to load once gets another try then: a local URL never changes, so
+  // a cover saved again under the same URL would otherwise stay a
+  // placeholder all session (see GameCoverArt).
+  coverRetryToken: number
 
   connection: SteamConnectionStatus | null
   // false until the first connection read has answered, so a view can tell
@@ -73,6 +78,7 @@ export interface SteamLibrary {
 export function useSteamLibrary(): SteamLibrary {
   const [installed, setInstalled] = useState<SteamInstalledGame[]>([])
   const [installedLoaded, setInstalledLoaded] = useState(false)
+  const [coverRetryToken, setCoverRetryToken] = useState(0)
   const [connection, setConnection] = useState<SteamConnectionStatus | null>(null)
   const [connectionLoaded, setConnectionLoaded] = useState(false)
   const [connectError, setConnectError] = useState<string | null>(null)
@@ -265,9 +271,13 @@ export function useSteamLibrary(): SteamLibrary {
   // New covers finished downloading. Until now the grid was showing the remote
   // URLs; re-read the library (main now returns local URLs for what is on
   // disk) and swap just the cover URLs in, so the local copies are used this
-  // session instead of only after a restart.
+  // session instead of only after a restart. The installed list is re-read
+  // too: covers main looked up for installed games that aren't owned only
+  // come through it.
   useEffect(() => {
     return window.api.steam.onCoversChanged(() => {
+      setCoverRetryToken((token) => token + 1)
+      loadInstalled()
       window.api.steam
         .getCachedLibrary()
         .then((cached) => {
@@ -279,7 +289,7 @@ export function useSteamLibrary(): SteamLibrary {
           // Covers are a nicety; the remote URLs keep working.
         })
     })
-  }, [])
+  }, [loadInstalled])
 
   // Saved copy of the library, shown instantly while the live fetch above is
   // still running. Same steamId64 tagging and `ignore` guard as that effect.
@@ -341,6 +351,7 @@ export function useSteamLibrary(): SteamLibrary {
   return {
     installed,
     installedLoaded,
+    coverRetryToken,
     connection,
     connectionLoaded,
     connecting,

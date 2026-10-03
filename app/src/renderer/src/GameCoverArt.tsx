@@ -7,10 +7,9 @@ interface GameCoverArtProps {
   // cover art isn't available yet, where the title is the only way to tell
   // them apart. Without it the placeholder stays a plain block.
   placeholderLabel?: string
-  // A failure only counts for the token it happened under. Epic passes a
-  // token that changes on every list read, so a cover whose URL never changes
-  // can still recover from one failed load. Steam passes none; its failed URL
-  // is replaced by a new one (remote to local) instead.
+  // A failure only counts for the token it happened under, so a cover whose
+  // URL never changes can still recover from one failed load. Epic's token
+  // changes on every list read, Steam's whenever new covers are saved.
   retryToken?: number
 }
 

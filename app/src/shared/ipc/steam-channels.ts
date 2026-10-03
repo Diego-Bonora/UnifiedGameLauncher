@@ -34,6 +34,10 @@ export interface SteamInstalledGame {
   // `unreadableLibraries` below, so the two compare as plain strings, also
   // across reads. Not for display.
   libraryPath: string
+  // A saved cover (app-cover://covers/<appId>), or null. Used when the owned
+  // library has none for this game (free-to-play, Family Sharing, no key):
+  // main looks those up itself and says when one is saved.
+  coverUrl: string | null
 }
 
 // One read of the games installed on this PC. A library folder that couldn't

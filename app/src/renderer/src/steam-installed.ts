@@ -20,6 +20,10 @@ import type { SteamInstalledGame, SteamInstalledResult } from '@shared/ipc/steam
 //
 // A failed call ('failed') keeps everything, and a failed FIRST read shows
 // nothing rather than an error.
+//
+// Covers only ever upgrade (lessons.md: never let a view downgrade): a game
+// that showed a cover keeps it when a later read comes back without one, for
+// example while the covers folder is briefly locked.
 export function nextSteamInstalled(
   previous: SteamInstalledGame[] | null,
   read: SteamInstalledResult | 'failed'
@@ -27,11 +31,22 @@ export function nextSteamInstalled(
   if (read === 'failed') return previous ?? []
   if (previous === null || previous.length === 0) return read.games
 
+  const shownCovers = new Map(
+    previous.flatMap((game) =>
+      game.coverUrl === null ? [] : [[game.appId, game.coverUrl] as const]
+    )
+  )
+  const fresh = read.games.map((game) =>
+    game.coverUrl === null && shownCovers.has(game.appId)
+      ? { ...game, coverUrl: shownCovers.get(game.appId) ?? null }
+      : game
+  )
+
   const unreadable = new Set(read.unreadableLibraries)
   const seen = new Set(read.games.map((game) => game.appId))
   const kept = previous.filter(
     (game) =>
       !seen.has(game.appId) && (!read.libraryListReadable || unreadable.has(game.libraryPath))
   )
-  return kept.length === 0 ? read.games : [...read.games, ...kept]
+  return kept.length === 0 ? fresh : [...fresh, ...kept]
 }

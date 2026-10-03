@@ -129,7 +129,7 @@ function LibraryScreen({
           card={card}
           kind={kind}
           showBadge={view === 'all'}
-          coverRetryToken={card.store === 'epic' ? epic.coverRetryToken : undefined}
+          coverRetryToken={card.store === 'epic' ? epic.coverRetryToken : steam.coverRetryToken}
           busy={handOff.activeKey !== null}
           active={handOff.activeKey === card.key}
           onStart={() => handOff.start(card, kind)}

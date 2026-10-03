@@ -56,7 +56,12 @@ So owned-library retries keep running while the user fixes their key in Settings
 - **Install request:** a new Steam-only IPC channel, zod-validated like launch (digits-only `appId`). Main builds the URL. The allow-list checks only the protocol, so `steam://` already passes; the safety comes from main building the URL from a validated id. Install is an optional part of the store contract: Epic has none.
 
 ## Covers
-- Steam installed games use the owned library's cover for the same `appId` when there is one. Otherwise (no API key yet, or a game not in the owned list) the card shows the title on a placeholder.
+- Steam installed games use the owned library's cover for the same `appId` when there is one.
+- **Installed but not in the owned list** (free-to-play games, which the owned-games request leaves out; Family Sharing; or no API key yet): main looks the cover up itself with the same Steam cover service the owned library uses. That service needs no key, so this works before Steam is connected. Main saves the cover in the same Steam covers folder, and the card changes from placeholder to poster when it arrives. Added 2026-10-03 after the Windows test: Brawlhalla, Warframe, Unturned and Forager were on placeholders, and a plain request returned a poster for all four.
+  - Only games with no saved cover are looked up, at most once per game per app session. A lookup that fails (offline, Steam erroring) is tried again on a later read, but no sooner than a minute later. A game Steam has no poster for stays a placeholder.
+  - The owned library's cover cleanup keeps the covers of every game seen installed this session, so a drive that goes to sleep doesn't lose its games' covers. Nothing is cleaned up before the installed list has been read once. A drive that is never readable (an old listed folder) doesn't stop the cleanup.
+  - Disconnecting Steam still deletes every saved Steam cover. Installed games' covers come back on the next read.
+  - The Library section is unchanged: it lists owned games only.
 - Epic covers are unchanged (SteamGridDB with the user's key, or the placeholder).
 
 ## Refresh
@@ -80,12 +85,11 @@ The Steam sign-in, the Steam Web API key form and the SteamGridDB key form, move
 ## Known limits (accepted)
 - **Different accounts:** Installed comes from this PC's Steam folders, whoever is signed in to the Steam client. Library comes from the account connected in the app. If they are different accounts, the sections won't match. This is a personal app with one Steam account per Windows user.
 - **Unreadable drive at startup:** the installed list is kept only in memory, so if a Steam library drive is asleep or unplugged when the app starts, its games show under Library (with Install) until a later read sees the drive, for example when the window regains focus (user's choice, 2026-10-03).
-- **Installed but not owned:** family-shared and never-played free games are installed but not in the owned list, so they show with a title placeholder.
+- **Installed but not owned:** family-shared and free-to-play games are installed but not in the owned list. They get their cover from a lookup of their own (see Covers), but they never appear in Library once uninstalled.
 - **Non-games and partial downloads show as installed:** every Steam app manifest is listed, including tools such as "Steamworks Common Redistributables", dedicated servers and SDKs (user's choice, 2026-10-03), and a game whose download has only started. Clicking one hands it to Steam, which shows its own state.
 
 ## Not in this step
 - Favorites, search, sort options, an Installed-only filter, or other Milestone 6 filters (the sidebar is where they can go later).
 - Game counts in the sidebar, or remembering the last view.
-- Fetching covers for Steam installed games that aren't in the owned list.
 - Card size settings, list view, game detail page.
 - Uninstalling, or knowing when a Steam install finishes (focus refresh only).

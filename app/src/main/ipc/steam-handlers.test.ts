@@ -38,9 +38,16 @@ describe('listSteamInstalledGames', () => {
           appId: '440',
           title: 'Team Fortress 2',
           installPath: tf2.installPath,
-          libraryPath: 'c:\\steam'
+          libraryPath: 'c:\\steam',
+          coverUrl: null
         },
-        { appId: '570', title: 'Dota 2', installPath: dota.installPath, libraryPath: 'd:\\lib' }
+        {
+          appId: '570',
+          title: 'Dota 2',
+          installPath: dota.installPath,
+          libraryPath: 'd:\\lib',
+          coverUrl: null
+        }
       ],
       unreadableLibraries: ['e:\\asleep'],
       libraryListReadable: true
@@ -76,6 +83,50 @@ describe('listSteamInstalledGames', () => {
         throw new Error('boom')
       })
     ).resolves.toEqual({ games: [], unreadableLibraries: [], libraryListReadable: false })
+  })
+})
+
+describe('listSteamInstalledGames covers', () => {
+  const scan = async (readable = true): Promise<SteamInstallScan> => ({
+    libraries: [
+      { path: 'C:\\Steam', readable: true, games: [tf2] },
+      { path: 'D:\\Lib', readable, games: readable ? [dota] : [] }
+    ],
+    libraryListReadable: true
+  })
+
+  it('attaches saved covers and reports the listed games as complete', async () => {
+    const onListed = vi.fn()
+    const result = await listSteamInstalledGames(() => scan(), {
+      urlsFor: async () => new Map([['570', 'app-cover://covers/570']]),
+      onListed
+    })
+    expect(result.games.map((game) => game.coverUrl)).toEqual([null, 'app-cover://covers/570'])
+    expect(onListed).toHaveBeenCalledWith(['440', '570'])
+  })
+
+  it('still lists every game when saved covers cannot be read', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const result = await listSteamInstalledGames(() => scan(), {
+      urlsFor: async () => {
+        throw new Error('EBUSY')
+      },
+      onListed: () => undefined
+    })
+    expect(result.games.map((game) => game.coverUrl)).toEqual([null, null])
+  })
+
+  it('does not report anything when the scan itself broke', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const onListed = vi.fn()
+    await listSteamInstalledGames(
+      async () => {
+        throw new Error('boom')
+      },
+      { urlsFor: async () => new Map(), onListed }
+    )
+    // The cover cleanup keeps relying on the last real read.
+    expect(onListed).not.toHaveBeenCalled()
   })
 })
 

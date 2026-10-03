@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { SteamAppRequest, SteamInstalledGame } from './steam-channels'
+import { COVER_URL_PREFIX, type SteamAppRequest, type SteamInstalledGame } from './steam-channels'
 
 export { STEAM_CHANNELS } from './steam-channels'
 export type {
@@ -23,7 +23,8 @@ export const steamInstalledGameSchema = z.object({
   appId: z.string().regex(/^\d+$/),
   title: z.string().min(1),
   installPath: z.string().min(1),
-  libraryPath: z.string().min(1)
+  libraryPath: z.string().min(1),
+  coverUrl: z.string().startsWith(COVER_URL_PREFIX).nullable()
 }) satisfies z.ZodType<SteamInstalledGame>
 
 // The payload of launch and install, the only Steam payloads that come from

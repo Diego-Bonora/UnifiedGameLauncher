@@ -5,7 +5,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // still resolve.
 vi.mock('electron', () => ({ app: { getPath: () => '/nonexistent' } }))
 
-import { clearCovers, syncCovers, withLocalCoverUrls, type CoverCacheDeps } from './cover-cache'
+import {
+  clearCovers,
+  localSteamCoverUrls,
+  noteInstalledSteamGames,
+  syncCovers,
+  syncInstalledCovers,
+  withLocalCoverUrls,
+  type CoverCacheDeps,
+  type InstalledCoverDeps
+} from './cover-cache'
 import { isSteamCoverAssetUrl } from '../stores/steam/library-cover-art'
 
 const BASE = 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps'
@@ -49,8 +58,13 @@ function fakeDeps(existing: string[] = []): FakeDeps {
   }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  // Forgets the installed-cover session state between tests.
+  await clearCovers(fakeDeps())
+  // Most tests are about owned games alone: the installed list has been
+  // read and is empty, so the owned sync's cleanup runs as it always did.
+  noteInstalledSteamGames([])
 })
 
 describe('isSteamCoverAssetUrl', () => {
@@ -359,5 +373,146 @@ describe('withLocalCoverUrls', () => {
     const [result] = await withLocalCoverUrls([game('10')], deps)
 
     expect(result?.coverUrl).toBe(`${BASE}/10/cap.jpg`)
+  })
+})
+
+describe('syncCovers: cleanup and installed games', () => {
+  it('keeps the covers of installed games that are not owned', async () => {
+    noteInstalledSteamGames(['30'])
+    const deps = fakeDeps(['10.jpg', '30.png', '99.jpg'])
+    await syncCovers([game('10')], deps)
+    expect(deps.deleted).toEqual(['99.jpg'])
+  })
+
+  it('keeps covers of games seen installed earlier this session', async () => {
+    // 30 was on a drive that has since gone to sleep: the window still shows
+    // it, so its cover must stay.
+    noteInstalledSteamGames(['30'])
+    noteInstalledSteamGames([])
+    const deps = fakeDeps(['10.jpg', '30.png'])
+    await syncCovers([game('10')], deps)
+    expect(deps.deleted).toEqual([])
+  })
+
+  it('removes nothing before the installed list has been read', async () => {
+    await clearCovers(fakeDeps())
+    const deps = fakeDeps(['10.jpg', '99.jpg'])
+    await syncCovers([game('10')], deps)
+    expect(deps.deleted).toEqual([])
+  })
+})
+
+describe('syncInstalledCovers', () => {
+  const CAP = (appId: string): string => `${BASE}/${appId}/library_capsule.jpg`
+
+  function installedDeps(
+    existing: string[],
+    lookUp: InstalledCoverDeps['lookUp'],
+    now: () => number = () => 0
+  ): FakeDeps & {
+    lookUp: ReturnType<typeof vi.fn<InstalledCoverDeps['lookUp']>>
+    now: () => number
+  } {
+    return { ...fakeDeps(existing), lookUp: vi.fn<InstalledCoverDeps['lookUp']>(lookUp), now }
+  }
+
+  it('looks up and saves covers only for games without one on disk', async () => {
+    const deps = installedDeps(['10.jpg'], async (ids) => ({
+      urls: Object.fromEntries(ids.map((id) => [id, CAP(id)])),
+      failedIds: []
+    }))
+    expect(await syncInstalledCovers(['10', '230410'], deps)).toBe(1)
+    expect(deps.lookUp.mock.calls[0]?.[0]).toEqual(['230410'])
+    expect([...deps.written.keys()]).toEqual(['230410.jpg'])
+  })
+
+  it('asks about a game with no poster only once per session', async () => {
+    const deps = installedDeps([], async () => ({ urls: {}, failedIds: [] }))
+    await syncInstalledCovers(['5'], deps)
+    await syncInstalledCovers(['5'], deps)
+    expect(deps.lookUp).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks again after a failed request, but not within a minute', async () => {
+    let calls = 0
+    let clock = 0
+    const deps = installedDeps(
+      [],
+      async (ids) => {
+        calls++
+        return calls === 1
+          ? { urls: {}, failedIds: ids }
+          : { urls: Object.fromEntries(ids.map((id) => [id, CAP(id)])), failedIds: [] }
+      },
+      () => clock
+    )
+    expect(await syncInstalledCovers(['5'], deps)).toBe(0)
+    clock = 30_000
+    // A window focus half a minute later doesn't ask Steam again.
+    expect(await syncInstalledCovers(['5'], deps)).toBe(0)
+    expect(deps.lookUp).toHaveBeenCalledTimes(1)
+    clock = 61_000
+    expect(await syncInstalledCovers(['5'], deps)).toBe(1)
+  })
+
+  it('lets a disconnect cancel a lookup in flight instead of waiting for it', async () => {
+    const deps = installedDeps(
+      [],
+      (_ids, signal) =>
+        // Answers only when cancelled, like a hung request.
+        new Promise((resolve) =>
+          signal.addEventListener('abort', () => resolve({ urls: {}, failedIds: ['5'] }))
+        )
+    )
+    const running = syncInstalledCovers(['5'], deps)
+    await tick()
+    await clearCovers(deps)
+    expect(await running).toBe(0)
+  })
+
+  it('tries a failing download once per session, not on every read', async () => {
+    const deps = installedDeps([], async (ids) => ({
+      urls: Object.fromEntries(ids.map((id) => [id, CAP(id)])),
+      failedIds: []
+    }))
+    deps.fetchImage.mockRejectedValue(new Error('404'))
+    await syncInstalledCovers(['5'], deps)
+    await syncInstalledCovers(['5'], deps)
+    expect(deps.fetchImage).toHaveBeenCalledTimes(1)
+  })
+
+  it('never downloads from a URL outside the Steam asset host', async () => {
+    const deps = installedDeps([], async () => ({
+      urls: { '5': 'https://evil.test/5.jpg' },
+      failedIds: []
+    }))
+    expect(await syncInstalledCovers(['5'], deps)).toBe(0)
+    expect(deps.fetchImage).not.toHaveBeenCalled()
+  })
+
+  it('looks games up again after a disconnect cleared the covers', async () => {
+    const deps = installedDeps([], async () => ({ urls: {}, failedIds: [] }))
+    await syncInstalledCovers(['5'], deps)
+    await clearCovers(deps)
+    await syncInstalledCovers(['5'], deps)
+    expect(deps.lookUp).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not run for a sync queued before a disconnect', async () => {
+    const deps = installedDeps([], async (ids) => ({
+      urls: Object.fromEntries(ids.map((id) => [id, CAP(id)])),
+      failedIds: []
+    }))
+    const queued = syncInstalledCovers(['5'], deps)
+    await clearCovers(deps)
+    expect(await queued).toBe(0)
+    expect(deps.written.size).toBe(0)
+  })
+})
+
+describe('localSteamCoverUrls', () => {
+  it('gives a local URL only for covers on disk', async () => {
+    const urls = await localSteamCoverUrls(['10', '20'], fakeDeps(['10.png']))
+    expect([...urls]).toEqual([['10', 'app-cover://covers/10']])
   })
 })

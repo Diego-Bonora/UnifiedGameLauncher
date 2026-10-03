@@ -67,12 +67,13 @@ export function buildViewSections(view: LibraryView, data: LibraryData): ViewSec
   const installedSteamIds = new Set(data.steamInstalled.map((game) => game.appId))
 
   if (inView(view, 'steam')) {
-    // Installed games have no cover of their own: they borrow the owned
-    // library's. A game that isn't in the owned list (family sharing, a free
-    // game never played) or no owned list yet means a title placeholder.
+    // Installed games borrow the owned library's cover. One that isn't in
+    // the owned list (free-to-play, Family Sharing) or no owned list yet
+    // falls back to the cover main looked up for it, else a placeholder.
     const ownedCovers = new Map((data.steamOwned ?? []).map((game) => [game.appId, game.coverUrl]))
     for (const game of data.steamInstalled) {
-      installed.push(card('steam', game.appId, game.title, ownedCovers.get(game.appId) ?? null))
+      const coverUrl = ownedCovers.get(game.appId) ?? game.coverUrl
+      installed.push(card('steam', game.appId, game.title, coverUrl))
     }
   }
   if (inView(view, 'epic')) {
