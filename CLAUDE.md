@@ -68,3 +68,7 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 - [2026-10-02] Four review fixes to the Epic sync/status logic each broke something nearby. Before changing a status or "done" flag, check every reader of it; prefer per-item outcomes over global ones.
 - [2026-10-02] Told the user to copy a key then run `! pbpaste > file`; the order was wrong and the key ended up in the chat. Give secret-to-file steps in order (command first, then copy, then Enter) and never ask for a key in chat.
 - [2026-10-02] A dev app handed over for testing was killed at the 30-min background limit. Use the 2 h timeout or give the user the command.
+- [2026-10-03] Installed Steam cards assumed every installed game is owned; free-to-play and family-shared games aren't in `GetOwnedGames`. Check what a data source leaves out before building on it.
+- [2026-10-03] Spacing here is 8 px per Tailwind unit (`w-28` = 224 px), not 4 px. Halve stock Tailwind numbers; screenshot new layout via CDP.
+- [2026-10-03] Typed a known icon library's SVG path from memory. Draw icons from basic shapes; nothing copied.
+- [2026-10-03] `kill $P` in zsh passes all PIDs as one argument. Use `xargs kill < pidfile`.

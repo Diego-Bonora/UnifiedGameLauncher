@@ -10,6 +10,22 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-10-03 — Assumed every installed Steam game is in the owned list
+**What happened:** The library layout spec had installed Steam cards borrow their cover from the owned library by `appId`. On Windows, Brawlhalla, Warframe and Unturned (free-to-play) and Forager (Family Sharing) showed placeholders: `GetOwnedGames` leaves free games out unless `include_played_free_games` is set, and shared games aren't owned at all. The spec even listed "installed but not owned" as a known limit, but nobody checked how common it was. One plain `IStoreBrowseService/GetItems` request then showed covers exist for all four, without a key.
+**Rule going forward:** When one data source fills in another (covers by id, titles by id), write down what the source leaves out (read its parameters) and check the real data for how many items fall through before calling it an edge case. Plan the fallback in the spec, not after the user notices.
+
+## 2026-10-03 — Sized the sidebar with Tailwind's default 4 px scale; this project's is 8 px
+**What happened:** The first sidebar was `w-56`, meant as 224 px. `main.css` sets `--spacing: 8px`, so it rendered at 448 px with a 32 px gear icon. The CDP screenshot caught it before the user saw it. The same scale also hid an 8 px padding that cut off the app name.
+**Rule going forward:** In this project one spacing unit is 8 px: `w-28` = 224 px, `h-2` = 16 px, `px-1` = 8 px, `gap-3` = 24 px. Halve the number you'd write for stock Tailwind, and check new layout with a CDP screenshot (`Page.captureScreenshot`, `Emulation.setDeviceMetricsOverride` for widths) before handing it over.
+
+## 2026-10-03 — Reused a well-known icon path, which CLAUDE.md forbids
+**What happened:** For the sidebar's Settings icon I first wrote the SVG path of a popular open-source icon set's gear from memory. CLAUDE.md says no code copied from other projects; I noticed and replaced it with a gear drawn from scratch (ring, hub, eight teeth).
+**Rule going forward:** Draw icons from basic shapes (`circle`, short `path` lines) and say so in a comment; never type out a path from an icon library, even from memory.
+
+## 2026-10-03 — `kill $PIDS` in zsh passed every PID as one argument
+**What happened:** Stopping the dev app with `P=$(...); kill $P` failed with "illegal pid": zsh doesn't word-split unquoted variables, so `kill` got "54840 54841 …" as a single argument and nothing was stopped.
+**Rule going forward:** Write the PIDs to a file and use `xargs kill < file`, or list them literally. Still confirm with `ps` and `curl` on the debug port afterwards.
+
 ## 2026-10-02 — Four review fixes each introduced a new bug in the same sync/status logic
 **What happened:** In the Epic cover work, a fix to one finding broke something nearby four times: "posters we can't use" became `unavailable`, which halted the whole run for every game; a state-file failure set `unavailable` over a `keyRejected` that then never cleared; setting `lastSynced` before the sync locked out retries after a failed startup sync; and skipping the sync with no key silently dropped the folder housekeeping the spec required. Each was caught only by the next review round, so Steps 2 and 3 needed three rounds each.
 **Rule going forward:** Before changing a status, flag or "already done" marker, list every place that reads or clears it and check what the new value does there (halts, retries, notifications, other games in the same run). Prefer per-item outcomes (`unusable`) over reusing a global one (`unavailable`). Write the test for the neighbouring behaviour as well as the fixed one, mutation-check it, and expect to re-review a fix to state-machine code.

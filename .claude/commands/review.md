@@ -59,3 +59,6 @@ Say: "No issues found. Ready to run /close and commit."
 - Never let the review subagent fix things — separation of review and 
   implementation is intentional
 - A clean review doesn't mean perfect code — it means no known issues
+
+## Gotchas
+- [2026-10-03] A review subagent ran `tsc -p tsconfig.web.json` without `--composite false` and left `app/tsconfig.web.tsbuildinfo` in the repo. Tell the subagent to pass `--composite false` (or use `npm run typecheck`), and check `git status` for stray files after every review.
