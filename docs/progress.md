@@ -6,7 +6,8 @@
 Milestones 0–4 are done and, by the user's report, work on Windows (CI installer from run 37133460579, 2026-10-03). Installed Epic games launch and show SteamGridDB posters with the user's own key; no Epic login or Epic owned library (Epic's terms, 2026-10-02). 432 tests.
 
 ## In Progress
-Library layout redesign (spec in `docs/features/library-layout.md`): sidebar (All games / per store / Settings), full-width responsive grid, Installed + Library (not installed) sections, Steam install from the card, Settings screen. Spec written, awaiting review; no code yet.
+Library layout redesign (spec in `docs/features/library-layout.md`): sidebar (All games / per store / Settings), full-width responsive grid, Installed + Library (not installed) sections, Steam install from the card, Settings screen. Spec reviewed. Step 1 of 4 done (main + shared: store list, Steam installed scan reports unreadable libraries, Steam launch/install as data, `steam:install` channel, Epic result renamed to `{ accepted }`). Next: Step 2, app-wide renderer state + view helper. Check in Step 2: a leftover Steam registry key after uninstall makes every read "unreadable", so "keep last seen" holds those games for the session.
+Windows checks pending: `SteamPath` spelling, `reg` exit code 1 for a missing key, whether `openExternal` rejects when nothing handles `steam://` (also Epic's `launcherUnavailable`).
 
 ## Next Up
 Build the library layout. Then Milestone 6 (manual games, search, filters, favorites, sort by store). Milestone 5 (other launchers) moved to v2.

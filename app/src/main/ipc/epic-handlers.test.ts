@@ -165,19 +165,19 @@ describe('planEpicLaunch', () => {
 describe('launchEpicGame', () => {
   const request = { appName: 'Alpha' }
 
-  it('opens the launch URL and reports launched', async () => {
+  it('opens the launch URL and reports accepted', async () => {
     const opened: string[] = []
     const result = await launchEpicGame(fakeProvider([alpha]), request, async (url) => {
       opened.push(url)
     })
-    expect(result).toEqual({ launched: true })
+    expect(result).toEqual({ accepted: true })
     expect(opened).toEqual(['com.epicgames.launcher://apps/Alpha?action=launch&silent=true'])
   })
 
   it('reports notInstalled and opens nothing for an undetected game', async () => {
     const openExternal = vi.fn(async () => {})
     const result = await launchEpicGame(fakeProvider([]), request, openExternal)
-    expect(result).toEqual({ launched: false, reason: 'notInstalled' })
+    expect(result).toEqual({ accepted: false, reason: 'notInstalled' })
     expect(openExternal).not.toHaveBeenCalled()
   })
 
@@ -186,7 +186,7 @@ describe('launchEpicGame', () => {
     const result = await launchEpicGame(fakeProvider([alpha]), request, async () => {
       throw new Error('No application is associated with the URL')
     })
-    expect(result).toEqual({ launched: false, reason: 'launcherUnavailable' })
+    expect(result).toEqual({ accepted: false, reason: 'launcherUnavailable' })
     expect(warn).toHaveBeenCalledTimes(1)
   })
 
@@ -200,7 +200,7 @@ describe('launchEpicGame', () => {
       }
     }
     const result = await launchEpicGame(provider, request, openExternal)
-    expect(result).toEqual({ launched: false, reason: 'notInstalled' })
+    expect(result).toEqual({ accepted: false, reason: 'notInstalled' })
     expect(openExternal).not.toHaveBeenCalled()
     expect(warn).toHaveBeenCalledTimes(1)
   })

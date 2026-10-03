@@ -56,7 +56,7 @@ export function feedbackForLaunch(title: string, outcome: LaunchOutcome): Launch
   if (outcome === 'failed') {
     return { message: epicLaunchMessage('failed'), tone: 'danger', refreshList: false }
   }
-  if (outcome.launched) {
+  if (outcome.accepted) {
     return { message: `Starting ${title}…`, tone: 'info', refreshList: false }
   }
   return {

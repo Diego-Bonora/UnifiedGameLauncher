@@ -7,6 +7,7 @@
 export const STEAM_CHANNELS = {
   getInstalledGames: 'steam:getInstalledGames',
   launch: 'steam:launch',
+  install: 'steam:install',
   signIn: 'steam:signIn',
   cancelSignIn: 'steam:cancelSignIn',
   disconnect: 'steam:disconnect',
@@ -28,6 +29,25 @@ export interface SteamInstalledGame {
   appId: string
   title: string
   installPath: string
+  // The Steam library folder the game was found in, normalized by main (lower
+  // case, backslashes, no trailing slash) the same way as
+  // `unreadableLibraries` below, so the two compare as plain strings, also
+  // across reads. Not for display.
+  libraryPath: string
+}
+
+// One read of the games installed on this PC. A library folder that couldn't
+// be read is not the same as one with no games: a sleeping or unplugged drive
+// would otherwise make every game on it look uninstalled. So the result says
+// what it couldn't see, and the renderer keeps the games it last saw there.
+//  - unreadableLibraries: library folders Steam lists that couldn't be read
+//  - libraryListReadable: false when Steam's list of library folders itself
+//    couldn't be read, so any library other than the main one may be missing
+//    without being named in unreadableLibraries
+export interface SteamInstalledResult {
+  games: SteamInstalledGame[]
+  unreadableLibraries: string[]
+  libraryListReadable: boolean
 }
 
 export interface SteamOwnedGame {
@@ -70,9 +90,19 @@ export interface SteamCachedLibrary {
   games: SteamOwnedGame[]
 }
 
-export interface SteamLaunchRequest {
+// The payload for both launch and install.
+export interface SteamAppRequest {
   appId: string
 }
+
+// Whether a launch or install request reached Steam. Returned as data, never
+// thrown (Electron would prefix a thrown message). "Accepted" only means
+// Windows handed the URL to Steam: the game window or install dialog comes
+// later, which is why the renderer pauses the cards for a few seconds.
+//  - steamUnavailable: Windows couldn't hand the request to Steam (Steam not
+//    installed, or its steam:// registration is broken)
+export type SteamHandOffResult =
+  { accepted: true } | { accepted: false; reason: 'steamUnavailable' }
 
 // A discriminated union instead of independent fields: makes
 // {status: 'connected', steamId64: null} unrepresentable rather than just

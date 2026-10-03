@@ -1,11 +1,13 @@
 import { z } from 'zod'
-import type { SteamInstalledGame, SteamLaunchRequest } from './steam-channels'
+import type { SteamAppRequest, SteamInstalledGame } from './steam-channels'
 
 export { STEAM_CHANNELS } from './steam-channels'
 export type {
   SteamConnectionStatus,
+  SteamAppRequest,
+  SteamHandOffResult,
   SteamInstalledGame,
-  SteamLaunchRequest,
+  SteamInstalledResult,
   SteamOwnedGame,
   SteamCachedLibrary,
   SteamLibraryFailure,
@@ -20,13 +22,15 @@ export type {
 export const steamInstalledGameSchema = z.object({
   appId: z.string().regex(/^\d+$/),
   title: z.string().min(1),
-  installPath: z.string().min(1)
+  installPath: z.string().min(1),
+  libraryPath: z.string().min(1)
 }) satisfies z.ZodType<SteamInstalledGame>
 
-// The only payload that actually crosses the boundary from renderer input.
-export const steamLaunchRequestSchema = z.object({
+// The payload of launch and install, the only Steam payloads that come from
+// renderer input. Digits only: the id goes into a steam:// URL.
+export const steamAppRequestSchema = z.object({
   appId: z.string().regex(/^\d+$/)
-}) satisfies z.ZodType<SteamLaunchRequest>
+}) satisfies z.ZodType<SteamAppRequest>
 
 // SteamConnectionStatus gets no schema here: unlike the above, nothing
 // crosses a trust boundary to produce it — it's built in main from data

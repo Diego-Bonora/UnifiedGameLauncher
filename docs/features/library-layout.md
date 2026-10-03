@@ -79,6 +79,7 @@ The Steam sign-in, the Steam Web API key form and the SteamGridDB key form, move
 
 ## Known limits (accepted)
 - **Different accounts:** Installed comes from this PC's Steam folders, whoever is signed in to the Steam client. Library comes from the account connected in the app. If they are different accounts, the sections won't match. This is a personal app with one Steam account per Windows user.
+- **Unreadable drive at startup:** the installed list is kept only in memory, so if a Steam library drive is asleep or unplugged when the app starts, its games show under Library (with Install) until a later read sees the drive, for example when the window regains focus (user's choice, 2026-10-03).
 - **Installed but not owned:** family-shared and never-played free games are installed but not in the owned list, so they show with a title placeholder.
 - **Non-games and partial downloads show as installed:** every Steam app manifest is listed, including tools such as "Steamworks Common Redistributables", dedicated servers and SDKs (user's choice, 2026-10-03), and a game whose download has only started. Clicking one hands it to Steam, which shows its own state.
 

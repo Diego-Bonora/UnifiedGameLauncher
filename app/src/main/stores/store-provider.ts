@@ -1,3 +1,5 @@
+import type { StoreId } from '@shared/stores'
+
 // The shape every store folder under main/stores/ implements, so the IPC
 // layer and (later) the library cache can treat stores interchangeably.
 export interface InstalledGame {
@@ -12,10 +14,13 @@ export interface InstalledGame {
 }
 
 export interface StoreProvider {
-  readonly store: 'steam' | 'epic'
+  readonly store: StoreId
   getInstalledGames(): Promise<InstalledGame[]>
   // Returns the protocol URL to open, rather than launching directly, so the
   // allow-list check (security/external-url.ts) stays centralized in the IPC
   // handler instead of being duplicated per store.
   getLaunchUrl(storeGameId: string): string
+  // Only for stores whose launcher can install a game from a URL (Steam).
+  // Same reason as getLaunchUrl for returning a URL.
+  getInstallUrl?(storeGameId: string): string
 }

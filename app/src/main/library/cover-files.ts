@@ -1,6 +1,7 @@
 import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
+import type { StoreId } from '@shared/stores'
 
 // The store-agnostic half of the cover cache: where each store's covers live,
 // how a downloaded file is checked and saved, and how an app-cover:// URL maps
@@ -11,7 +12,9 @@ import { app } from 'electron'
 // cover-protocol.ts).
 export const COVER_SCHEME = 'app-cover'
 
-export type CoverStore = 'steam' | 'epic'
+// Every supported store (shared/stores.ts) has a cover folder: a new store
+// doesn't compile until it gets an entry in STORES below.
+export type CoverStore = StoreId
 
 // Separate folders, because Steam's sync deletes every file in its folder
 // that isn't a current Steam cover; sharing one would wipe Epic's covers.

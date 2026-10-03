@@ -58,9 +58,14 @@ function App(): React.JSX.Element {
 
   const handleLaunch = (appId: string): void => {
     setLaunchError(null)
-    window.api.steam.launch(appId).catch(() => {
+    const failed = (): void =>
       setLaunchError('Could not launch this game. Make sure Steam is installed and running.')
-    })
+    window.api.steam
+      .launch(appId)
+      .then((result) => {
+        if (!result.accepted) failed()
+      })
+      .catch(failed)
   }
 
   const handleConnect = (): void => {
@@ -124,8 +129,10 @@ function App(): React.JSX.Element {
   useEffect(() => {
     window.api.steam
       .getInstalledGames()
-      .then((installedGames) => {
-        setGames(installedGames)
+      .then((result) => {
+        // Unreadable library folders are ignored until the new layout (it
+        // keeps games last seen there); this list is read only once anyway.
+        setGames(result.games)
         setState('loaded')
       })
       .catch(() => {

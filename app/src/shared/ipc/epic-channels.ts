@@ -38,7 +38,9 @@ export interface EpicLaunchRequest {
 //  - launcherUnavailable: Windows couldn't hand the request to the Epic
 //    launcher (not installed, or its protocol registration is broken)
 export type EpicLaunchFailure = 'notInstalled' | 'launcherUnavailable'
-export type EpicLaunchResult = { launched: true } | { launched: false; reason: EpicLaunchFailure }
+// Same shape as Steam's SteamHandOffResult, so one app-wide pause and message
+// line can handle both stores.
+export type EpicLaunchResult = { accepted: true } | { accepted: false; reason: EpicLaunchFailure }
 
 // SteamGridDB key status for the Epic section. The key itself never crosses
 // to the renderer.

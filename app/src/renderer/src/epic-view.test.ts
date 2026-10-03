@@ -42,7 +42,7 @@ describe('nextEpicGames', () => {
 
 describe('feedbackForLaunch', () => {
   it('reports progress, not silence, after a successful hand-off', () => {
-    expect(feedbackForLaunch('Fortnite', { launched: true })).toEqual({
+    expect(feedbackForLaunch('Fortnite', { accepted: true })).toEqual({
       message: 'Starting Fortnite…',
       tone: 'info',
       refreshList: false
@@ -50,11 +50,11 @@ describe('feedbackForLaunch', () => {
   })
 
   it('asks for a list refresh only when the game is no longer installed', () => {
-    const gone = feedbackForLaunch('X', { launched: false, reason: 'notInstalled' })
+    const gone = feedbackForLaunch('X', { accepted: false, reason: 'notInstalled' })
     expect(gone.tone).toBe('danger')
     expect(gone.refreshList).toBe(true)
 
-    const noLauncher = feedbackForLaunch('X', { launched: false, reason: 'launcherUnavailable' })
+    const noLauncher = feedbackForLaunch('X', { accepted: false, reason: 'launcherUnavailable' })
     expect(noLauncher.tone).toBe('danger')
     expect(noLauncher.refreshList).toBe(false)
   })

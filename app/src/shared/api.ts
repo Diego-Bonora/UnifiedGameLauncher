@@ -8,7 +8,8 @@ import type {
 import type {
   SteamCachedLibrary,
   SteamConnectionStatus,
-  SteamInstalledGame,
+  SteamHandOffResult,
+  SteamInstalledResult,
   SteamLibraryResult
 } from './ipc/steam-channels'
 
@@ -17,8 +18,13 @@ import type {
 // generic "send any channel" escape hatch.
 export interface RendererApi {
   steam: {
-    getInstalledGames: () => Promise<SteamInstalledGame[]>
-    launch: (appId: string) => Promise<void>
+    // Resolves even when nothing could be read; says which library folders
+    // it couldn't see.
+    getInstalledGames: () => Promise<SteamInstalledResult>
+    // Both resolve for every expected outcome, including Steam not taking the
+    // request; reject only for a malformed appId.
+    launch: (appId: string) => Promise<SteamHandOffResult>
+    install: (appId: string) => Promise<SteamHandOffResult>
     signIn: () => Promise<SteamConnectionStatus>
     cancelSignIn: () => Promise<void>
     disconnect: () => Promise<SteamConnectionStatus>
@@ -36,7 +42,7 @@ export interface RendererApi {
   }
   epic: {
     getInstalledGames: () => Promise<EpicInstalledGame[]>
-    // Resolves for every expected outcome, including `launched: false` when
+    // Resolves for every expected outcome, including `accepted: false` when
     // the game was uninstalled or the Epic launcher can't be reached; rejects
     // only for a malformed request.
     launch: (appName: string) => Promise<EpicLaunchResult>

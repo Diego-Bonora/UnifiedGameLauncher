@@ -9,6 +9,7 @@ const api: RendererApi = {
   steam: {
     getInstalledGames: () => ipcRenderer.invoke(STEAM_CHANNELS.getInstalledGames),
     launch: (appId) => ipcRenderer.invoke(STEAM_CHANNELS.launch, { appId }),
+    install: (appId) => ipcRenderer.invoke(STEAM_CHANNELS.install, { appId }),
     signIn: () => ipcRenderer.invoke(STEAM_CHANNELS.signIn),
     cancelSignIn: () => ipcRenderer.invoke(STEAM_CHANNELS.cancelSignIn),
     disconnect: () => ipcRenderer.invoke(STEAM_CHANNELS.disconnect),

@@ -111,9 +111,9 @@ export async function launchEpicGame(
     // as data, not Electron's prefixed raw error).
     if (err instanceof ZodError) throw err
     console.warn('[epic] could not confirm the game is installed:', err)
-    return { launched: false, reason: 'notInstalled' }
+    return { accepted: false, reason: 'notInstalled' }
   }
-  if ('notInstalled' in plan) return { launched: false, reason: 'notInstalled' }
+  if ('notInstalled' in plan) return { accepted: false, reason: 'notInstalled' }
   try {
     await openExternal(plan.url)
   } catch (err) {
@@ -121,7 +121,7 @@ export async function launchEpicGame(
     // registration is broken). Returned as data so the user gets a friendly
     // message instead of Electron's prefixed raw error.
     console.warn('[epic] could not hand the launch request to the Epic launcher:', err)
-    return { launched: false, reason: 'launcherUnavailable' }
+    return { accepted: false, reason: 'launcherUnavailable' }
   }
-  return { launched: true }
+  return { accepted: true }
 }
