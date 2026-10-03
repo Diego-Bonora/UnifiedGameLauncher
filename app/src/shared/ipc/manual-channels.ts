@@ -17,8 +17,15 @@ export const MANUAL_CHANNELS = {
   setArgs: 'manual:setArgs',
   changeExe: 'manual:changeExe',
   remove: 'manual:remove',
-  launch: 'manual:launch'
+  launch: 'manual:launch',
+  setCoverSource: 'manual:setCoverSource',
+  // main -> renderer event: a cover or icon was saved or removed. No
+  // payload; the window reads the list again.
+  coversChanged: 'manual:coversChanged'
 } as const
+
+// Covers are only ever shown from the local cache through this scheme.
+export const MANUAL_COVER_URL_PREFIX = 'app-cover://manual/'
 
 export type ManualCoverSource = 'steam' | 'icon'
 
@@ -60,6 +67,11 @@ export interface ManualGameView {
   // changed through main's own confirmation dialog.
   args: string
   coverSource: ManualCoverSource
+  // The saved Steam poster and exe icon (MANUAL_COVER_URL_PREFIX), or null.
+  // What the card shows is decided by coverSource (docs/features/
+  // library-tools.md, "Manual game covers").
+  posterUrl: string | null
+  iconUrl: string | null
 }
 
 // `readable: false` means manual-games.json exists but couldn't be read (for
@@ -92,6 +104,11 @@ export interface ManualRenameRequest {
 export interface ManualSetArgsRequest {
   id: string
   args: string
+}
+
+export interface ManualCoverSourceRequest {
+  id: string
+  source: ManualCoverSource
 }
 
 export interface ManualIdRequest {

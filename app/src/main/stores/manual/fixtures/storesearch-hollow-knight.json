@@ -1,0 +1,22 @@
+{
+  "total": 5,
+  "items": [
+    {
+      "type": "app",
+      "name": "Hollow Knight",
+      "id": 367520,
+      "price": { "currency": "USD", "initial": 1499, "final": 1499 },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/367520/fba7289f4c7e90ae9c0caa87e4225f3f9111d7dd/capsule_231x87.jpg?t=1776125684",
+      "metascore": "87",
+      "platforms": { "windows": true, "mac": true, "linux": true },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "Hollow Knight: Silksong",
+      "id": 1030300,
+      "price": { "currency": "USD", "initial": 1999, "final": 1999 }
+    }
+  ]
+}

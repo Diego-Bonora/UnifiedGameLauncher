@@ -302,6 +302,7 @@ The app connects directly from your computer to:
 
 - The game stores you connect (to get your library)
 - Image services (to download cover art): Steam's image servers, and SteamGridDB for Epic games if you add a SteamGridDB key (it receives your key and the Epic ids of your installed games)
+- Steam's store search, for games you added by hand and set to "Steam cover": it receives the game's title to find its poster. Games set to "Exe icon" send nothing
 - GitHub (to check for updates, if enabled)
 
 These services have their own privacy policies.

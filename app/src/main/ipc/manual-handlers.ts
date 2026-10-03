@@ -1,6 +1,7 @@
 import type { z } from 'zod'
 import {
   manualAddRequestSchema,
+  manualCoverSourceRequestSchema,
   manualIdRequestSchema,
   manualRenameRequestSchema,
   manualSetArgsRequestSchema,
@@ -13,6 +14,7 @@ import {
 import { gameKey } from '@shared/stores'
 import type { DirectStoreProvider } from '../stores/store-provider'
 import type { ManualGamesFile, SavedManualGame } from '../stores/manual'
+import type { ManualCovers } from '../stores/manual/manual-covers'
 import { isSamePath } from '../stores/manual/exe-path'
 import type { ManualGamesEdit } from '../stores/manual/manual-games-file'
 
@@ -40,6 +42,8 @@ export interface ManualHandlerDeps<Owner> {
   // Drops a removed game's star.
   removeFavorite: (key: string) => Promise<unknown>
   newId: () => string
+  // Posters and icons (stores/manual/manual-covers.ts).
+  covers: ManualCovers
 }
 
 export interface ManualHandlers<Owner> {
@@ -47,6 +51,7 @@ export interface ManualHandlers<Owner> {
   pickExe: (owner: Owner) => Promise<ManualPickResult>
   add: (owner: Owner, rawRequest: unknown) => Promise<ManualChangeResult>
   cancelAdd: () => void
+  setCoverSource: (rawRequest: unknown) => Promise<ManualChangeResult>
   rename: (rawRequest: unknown) => Promise<ManualChangeResult>
   setArgs: (owner: Owner, rawRequest: unknown) => Promise<ManualChangeResult>
   changeExe: (owner: Owner, rawRequest: unknown) => Promise<ManualChangeResult>
@@ -55,20 +60,6 @@ export interface ManualHandlers<Owner> {
 }
 
 const UNREADABLE: ManualGamesList = { readable: false, games: [] }
-
-function toList(games: SavedManualGame[] | null): ManualGamesList {
-  if (games === null) return UNREADABLE
-  return {
-    readable: true,
-    // Never the path, nor the cover bookkeeping.
-    games: games.map((game) => ({
-      id: game.id,
-      title: game.title,
-      args: game.args,
-      coverSource: game.coverSource
-    }))
-  }
-}
 
 // Only a caller bug gets here (the preload builds the payloads), so it throws
 // rather than returning a message for the user.
@@ -82,6 +73,30 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
   // The .exe picked for the open Add form. One at a time: a new pick replaces
   // it. Kept here so the renderer never holds (or can swap in) a path.
   let pendingPick: string | null = null
+
+  // The renderer's view: never the path nor the cover bookkeeping, plus
+  // the saved poster and icon URLs.
+  async function toList(games: SavedManualGame[] | null): Promise<ManualGamesList> {
+    if (games === null) return UNREADABLE
+    let urls = new Map<string, { posterUrl: string | null; iconUrl: string | null }>()
+    try {
+      urls = await deps.covers.urls(games)
+    } catch (err) {
+      // Covers are decoration: the list still shows, with placeholders.
+      console.warn('[manual] could not look up saved covers:', err)
+    }
+    return {
+      readable: true,
+      games: games.map((game) => ({
+        id: game.id,
+        title: game.title,
+        args: game.args,
+        coverSource: game.coverSource,
+        posterUrl: urls.get(game.id)?.posterUrl ?? null,
+        iconUrl: urls.get(game.id)?.iconUrl ?? null
+      }))
+    }
+  }
   // One file or confirmation dialog at a time. Two file dialogs could
   // otherwise finish in either order, leaving the form showing one file's
   // title for another file; and a window that kept opening confirmation
@@ -115,8 +130,13 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
     edit: (games: SavedManualGame[]) => Promise<ManualGamesEdit<F>>
   ): Promise<ManualChangeResult> {
     const result = await deps.file.update(edit)
-    if (result.saved) return { saved: true, list: toList(result.games) }
-    return { saved: false, reason: result.reason, list: toList(result.games) }
+    if (result.saved) return { saved: true, list: await toList(result.games) }
+    return { saved: false, reason: result.reason, list: await toList(result.games) }
+  }
+
+  async function currentList(): Promise<ManualGamesList> {
+    const read = await deps.file.read()
+    return read.readable ? toList(read.games) : UNREADABLE
   }
 
   function findIndex(games: SavedManualGame[], id: string): number {
@@ -126,7 +146,11 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
   return {
     list: async () => {
       const read = await deps.file.read()
-      return read.readable ? toList(read.games) : UNREADABLE
+      if (!read.readable) return UNREADABLE
+      // Fills in missing icons and posters in the background; the window is
+      // told when new files are on disk.
+      deps.covers.requestSync()
+      return toList(read.games)
     },
 
     pickExe: async (owner) => {
@@ -156,7 +180,7 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
         return {
           saved: false,
           reason: 'noPick',
-          list: read.readable ? toList(read.games) : UNREADABLE
+          list: read.readable ? await toList(read.games) : UNREADABLE
         }
       }
       // Asked before taking the save queue: the dialog waits on the user.
@@ -167,7 +191,7 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
           return {
             saved: false,
             reason: confirmed === 'busy' ? 'busy' : 'notConfirmed',
-            list: read.readable ? toList(read.games) : UNREADABLE
+            list: read.readable ? await toList(read.games) : UNREADABLE
           }
         }
       }
@@ -184,7 +208,10 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
         }
         return { games: [...games, game] }
       })
-      if (result.saved) pendingPick = null
+      if (result.saved) {
+        pendingPick = null
+        deps.covers.requestSync()
+      }
       return result
     },
 
@@ -194,13 +221,47 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
 
     rename: async (rawRequest) => {
       const request = parse(manualRenameRequestSchema, rawRequest)
-      return change<'notFound'>(async (games) => {
+      let titleChanged = false
+      const result = await change<'notFound'>(async (games) => {
         const index = findIndex(games, request.id)
         if (index === -1) return { failure: 'notFound' }
+        // Saved unchanged: nothing to look up again, the poster stays.
+        if (games[index]?.title === request.title) return { games }
+        titleChanged = true
         return {
-          games: games.map((game, i) => (i === index ? { ...game, title: request.title } : game))
+          games: games.map((game, i) =>
+            // The Steam poster was found for the old title (spec: renaming
+            // drops it); the new title is looked up instead.
+            i === index ? { ...game, title: request.title, steamAppId: undefined } : game
+          )
         }
       })
+      if (!result.saved || !titleChanged) return result
+      await deps.covers.dropPoster(request.id)
+      // The new title gets its own lookup, even one tried earlier this session.
+      deps.covers.retry(request.id)
+      deps.covers.requestSync()
+      return { saved: true, list: await currentList() }
+    },
+
+    setCoverSource: async (rawRequest) => {
+      const request = parse(manualCoverSourceRequestSchema, rawRequest)
+      const result = await change<'notFound'>(async (games) => {
+        const index = findIndex(games, request.id)
+        if (index === -1) return { failure: 'notFound' }
+        // The saved poster is kept either way: switching back is instant.
+        return {
+          games: games.map((game, i) =>
+            i === index ? { ...game, coverSource: request.source } : game
+          )
+        }
+      })
+      if (result.saved) {
+        // Switching (back) to Steam cover asks Steam again (spec).
+        if (request.source === 'steam') deps.covers.retry(request.id)
+        deps.covers.requestSync()
+      }
+      return result
     },
 
     setArgs: async (owner, rawRequest) => {
@@ -209,7 +270,7 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
       if (!read.readable) return { saved: false, reason: 'unreadable', list: UNREADABLE }
       const current = read.games.find((game) => game.id === request.id)
       if (current === undefined)
-        return { saved: false, reason: 'notFound', list: toList(read.games) }
+        return { saved: false, reason: 'notFound', list: await toList(read.games) }
       // Unchanged or cleared arguments need no confirmation: they can't make
       // the game run anything new.
       const needsConfirm = request.args !== '' && request.args !== current.args
@@ -219,7 +280,7 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
         )
         if (confirmed !== true) {
           const reason = confirmed === 'busy' ? 'busy' : 'notConfirmed'
-          return { saved: false, reason, list: toList(read.games) }
+          return { saved: false, reason, list: await toList(read.games) }
         }
       }
       return change<'notFound' | 'notConfirmed' | 'busy'>(async (games) => {
@@ -244,14 +305,16 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
       const read = await deps.file.read()
       if (!read.readable) return { saved: false, reason: 'unreadable', list: UNREADABLE }
       if (findIndex(read.games, request.id) === -1) {
-        return { saved: false, reason: 'notFound', list: toList(read.games) }
+        return { saved: false, reason: 'notFound', list: await toList(read.games) }
       }
       const path = await withDialog(() => deps.pickExe(owner))
-      if (path === 'busy') return { saved: false, reason: 'busy', list: toList(read.games) }
-      if (path === null) return { saved: false, reason: 'cancelled', list: toList(read.games) }
+      if (path === 'busy') return { saved: false, reason: 'busy', list: await toList(read.games) }
+      if (path === null)
+        return { saved: false, reason: 'cancelled', list: await toList(read.games) }
       const resolved = await resolvePicked(path)
-      if (resolved === null) return { saved: false, reason: 'notExe', list: toList(read.games) }
-      return change<'notFound' | 'duplicate'>(async (games) => {
+      if (resolved === null)
+        return { saved: false, reason: 'notExe', list: await toList(read.games) }
+      const result = await change<'notFound' | 'duplicate'>(async (games) => {
         const index = findIndex(games, request.id)
         if (index === -1) return { failure: 'notFound' }
         if (isDuplicate(games, resolved, request.id)) return { failure: 'duplicate' }
@@ -260,6 +323,12 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
           games: games.map((game, i) => (i === index ? { ...game, exePath: resolved } : game))
         }
       })
+      // The icon is read again from the new exe (even one used before).
+      if (result.saved) {
+        deps.covers.retry(request.id)
+        deps.covers.requestSync()
+      }
+      return result
     },
 
     remove: async (rawRequest) => {
@@ -276,6 +345,9 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
         } catch (err) {
           console.warn('[manual] could not drop a removed game’s star:', err)
         }
+        // Its poster and icon go too (spec). A failure here is cleaned up by
+        // the next sync, which deletes files of games that are gone.
+        await deps.covers.forget(request.id).catch(() => undefined)
       }
       return result
     },

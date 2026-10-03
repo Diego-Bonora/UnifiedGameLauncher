@@ -79,6 +79,14 @@ function setup(
         ?.replace(/\.exe$/i, '') ?? path,
     removeFavorite: vi.fn(async () => undefined),
     newId: () => ID_B,
+    covers: {
+      urls: async () => new Map(),
+      requestSync: vi.fn(),
+      retry: vi.fn(),
+      forget: vi.fn(async () => undefined),
+      dropPoster: vi.fn(async () => undefined),
+      whenIdle: async () => undefined
+    },
     ...overrides
   }
   return { handlers: createManualHandlers(deps), deps, fileDeps, picks, provider }
@@ -90,7 +98,16 @@ describe('manual handlers: list', () => {
     const list = await handlers.list()
     expect(list).toEqual({
       readable: true,
-      games: [{ id: ID_A, title: 'Doom', args: '-fast', coverSource: 'steam' }]
+      games: [
+        {
+          id: ID_A,
+          title: 'Doom',
+          args: '-fast',
+          coverSource: 'steam',
+          posterUrl: null,
+          iconUrl: null
+        }
+      ]
     })
     expect(JSON.stringify(list)).not.toContain('doom.exe')
   })
@@ -443,5 +460,49 @@ describe('manual handlers: removing and launching', () => {
     expect(await handlers.launch({ id: ID_A })).toEqual({ accepted: true })
     expect(provider.launch).toHaveBeenCalledWith(ID_A)
     await expect(handlers.launch({ id: 'C:\\Windows\\System32\\cmd.exe' })).rejects.toThrow()
+  })
+})
+
+describe('manual handlers: covers', () => {
+  it('starts a cover sync when the list is read', async () => {
+    const { handlers, deps } = setup([saved(ID_A, 'Doom', DOOM)])
+    await handlers.list()
+    expect(deps.covers.requestSync).toHaveBeenCalled()
+  })
+
+  it('drops the Steam poster and app id on rename, so the new title is looked up', async () => {
+    const { handlers, deps, fileDeps } = setup([
+      { ...saved(ID_A, 'Doom', DOOM), steamAppId: '2280' }
+    ])
+    expect((await handlers.rename({ id: ID_A, title: 'My Doom Mod' })).saved).toBe(true)
+    expect(deps.covers.dropPoster).toHaveBeenCalledWith(ID_A)
+    expect(fileDeps.saved()?.[0]?.steamAppId).toBeUndefined()
+    expect(deps.covers.requestSync).toHaveBeenCalled()
+  })
+
+  it('keeps the poster when a rename saves the same title', async () => {
+    const { handlers, deps } = setup([{ ...saved(ID_A, 'Doom', DOOM), steamAppId: '2280' }])
+    expect((await handlers.rename({ id: ID_A, title: 'Doom' })).saved).toBe(true)
+    expect(deps.covers.dropPoster).not.toHaveBeenCalled()
+  })
+
+  it('lets the poster be looked up again when switched back to Steam cover', async () => {
+    const { handlers, deps } = setup([{ ...saved(ID_A, 'Doom', DOOM), coverSource: 'icon' }])
+    await handlers.setCoverSource({ id: ID_A, source: 'steam' })
+    expect(deps.covers.retry).toHaveBeenCalledWith(ID_A)
+  })
+
+  it('saves the cover choice and keeps the files either way', async () => {
+    const { handlers, deps, fileDeps } = setup([saved(ID_A, 'Doom', DOOM)])
+    expect((await handlers.setCoverSource({ id: ID_A, source: 'icon' })).saved).toBe(true)
+    expect(fileDeps.saved()?.[0]?.coverSource).toBe('icon')
+    expect(deps.covers.dropPoster).not.toHaveBeenCalled()
+    await expect(handlers.setCoverSource({ id: ID_A, source: 'poster' })).rejects.toThrow()
+  })
+
+  it('deletes both cover files when a game is removed', async () => {
+    const { handlers, deps } = setup([saved(ID_A, 'Doom', DOOM)])
+    await handlers.remove({ id: ID_A })
+    expect(deps.covers.forget).toHaveBeenCalledWith(ID_A)
   })
 })

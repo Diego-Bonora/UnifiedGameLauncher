@@ -5,6 +5,7 @@ import {
   MAX_ARGS_LENGTH,
   MAX_TITLE_LENGTH,
   type ManualAddRequest,
+  type ManualCoverSourceRequest,
   type ManualIdRequest,
   type ManualRenameRequest,
   type ManualSetArgsRequest
@@ -12,6 +13,7 @@ import {
 
 export {
   MANUAL_CHANNELS,
+  MANUAL_COVER_URL_PREFIX,
   MAX_ARGS_LENGTH,
   MAX_TITLE_LENGTH,
   hasValidArgsCharacters,
@@ -55,6 +57,11 @@ export const manualSetArgsRequestSchema = z.object({
   id: manualIdSchema,
   args: manualArgsSchema
 }) satisfies z.ZodType<ManualSetArgsRequest>
+
+export const manualCoverSourceRequestSchema = z.object({
+  id: manualIdSchema,
+  source: z.enum(['steam', 'icon'])
+}) satisfies z.ZodType<ManualCoverSourceRequest>
 
 export const manualIdRequestSchema = z.object({
   id: manualIdSchema

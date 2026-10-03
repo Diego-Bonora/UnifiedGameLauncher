@@ -133,7 +133,9 @@ describe('buildViewSections: manual games', () => {
     id,
     title,
     args: '',
-    coverSource: 'steam'
+    coverSource: 'steam',
+    posterUrl: null,
+    iconUrl: null
   })
   const withManual = {
     ...data,
