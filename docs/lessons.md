@@ -10,6 +10,18 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-10-03 — Checked new dialogs only in the production build; in dev every dialog closed itself
+**What happened:** The Milestone 6 dialogs (native `<dialog>`) were checked in the app through the production build, where they worked. A review then spotted that React StrictMode (on in dev only) runs effects twice: the cleanup's `dialog.close()` fired a late `close` event that the second run's handler took as "the browser closed it" and cancelled. In `npm run dev` every Add/Rename/Remove dialog would have flashed and vanished. Confirmed by removing the fix and running the dev app headless with a debug port.
+**Rule going forward:** Check new UI in the dev app too (`npx electron-vite dev --remoteDebuggingPort=9333 --noSandbox` under `xvfb-run` in the cloud container), not only the build. Effects that call imperative browser APIs (showModal/close, focus, listeners) must survive mount → cleanup → mount, and event handlers must check the element's current state, not assume the event is fresh.
+
+## 2026-10-03 — A background sync that notifies the window, which then asks for the list, which starts the sync
+**What happened:** The manual-cover sync ran on every list read and told the window "covers changed" whenever it wrote a file. If its bookkeeping couldn't be saved (a locked `manual-games.json`) or a leftover file couldn't be deleted, every sync rewrote the same icons and notified again, and the window's reload would have started the next sync: an endless loop, caught by review before the listener existed.
+**Rule going forward:** Any "work → notify → caller re-reads → work" chain needs a guard that holds even when every save fails: try each item at most once per session in memory, and count a change only when it really happened (a delete that worked, a file actually written). Test it with the save and delete both failing and assert the second run neither writes nor notifies.
+
+## 2026-10-03 — Batched exact-text edits partly applied after Prettier reflowed a file
+**What happened:** Several multi-file Python edit batches asserted an exact old text per file. Prettier had reflowed some files since they were read, so one assert failed mid-batch: the files before it were changed, the ones after weren't, and a later regex fix even deleted a neighbouring schema line. Each time the result had to be re-read and repaired.
+**Rule going forward:** After running Prettier, re-read a file before editing it by exact text. Keep edit batches small, check which edits applied when one fails, and avoid multi-line regex replacements on code; prefer one anchored, unique replacement and grep the result.
+
 ## 2026-10-03 — Assumed every installed Steam game is in the owned list
 **What happened:** The library layout spec had installed Steam cards borrow their cover from the owned library by `appId`. On Windows, Brawlhalla, Warframe and Unturned (free-to-play) and Forager (Family Sharing) showed placeholders: `GetOwnedGames` leaves free games out unless `include_played_free_games` is set, and shared games aren't owned at all. The spec even listed "installed but not owned" as a known limit, but nobody checked how common it was. One plain `IStoreBrowseService/GetItems` request then showed covers exist for all four, without a key.
 **Rule going forward:** When one data source fills in another (covers by id, titles by id), write down what the source leaves out (read its parameters) and check the real data for how many items fall through before calling it an edge case. Plan the fallback in the spec, not after the user notices.

@@ -3,15 +3,26 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4 and the new library layout work on Windows (user-tested, CI runs 37141641404, 37145505283). The app has a sidebar (All games / Steam / Epic / Settings, ☰ drawer under 768 px), full-width 2:3 poster grids split into Installed and Library (owned, not installed), Play/Install from the card, and a Settings screen for the Steam sign-in, Steam key and SteamGridDB key. Installed Steam games that aren't owned (free-to-play, Family Sharing) get covers from Steam's cover service. Pushed up to `42d94c7`; 509 tests.
+Milestones 0–4 and the library layout work on Windows. Milestone 6 is nearly done on `claude/epic-clarke-xvw1eb` (up to `72ffa4c`, 687 tests): search, a favorite star, and manual games (a "Manual" store: add an .exe, rename, launch arguments confirmed in a native dialog, Change .exe, remove). Manual covers work in main (exe icon; Steam poster by exact title) but cards don't show them yet. Milestone 6 is untested on Windows.
 
 ## In Progress
-Nothing active.
+Milestone 6, Step 4b: show manual covers on the cards and add the Cover choice to the ⋯ menu.
 
 ## Next Up
-Milestone 6: manual games, search, filters, favorites, sort by store (filters/favorites can go in the sidebar). Milestone 5 is v2.
+Step 4b (renderer): card shows `posterUrl` for Steam cover, else the title placeholder with `iconUrl` centred; "Steam cover / Exe icon" radio items in `ManualGameMenu` (`menuitemradio`, `window.api.manual.setCoverSource`); preload `setCoverSource` + `onCoversChanged` → `manual.reload()`; covers only upgrade, never blank. Then the user's Windows test of Milestone 6.
 
 ---
+
+## 2026-10-03 (Milestone 6: search, favorites, manual games, manual covers in main)
+**Decided (spec `docs/features/library-tools.md`, user's calls):** "sort by store" = the sidebar views plus a new **Manual** store; filters = one search box per view (shared query); favorites = a star that pins to the top (no Favorites view); manual covers = per-game choice **Steam cover** (exact-title Steam match, falls back to the exe icon) or **Exe icon** (title never sent). New launch arguments are saved only after main's own native confirmation dialog; an exe refused by Windows (incl. admin-only) gets a "run as administrator" message. `StoreProvider` split into `UrlStoreProvider` (Steam, Epic) and `DirectStoreProvider` (Manual). Steam store search verified with one plain request from the user's Mac (keyless; fixture `stores/manual/fixtures/storesearch-hollow-knight.json`).
+**Built (5 feature commits, `0349cd6`..`72ffa4c`, 687 tests, 509 before):**
+- 1 search: `game-search.ts`, `SearchBox.tsx`. 2 favorites: `favorites-store.ts`, `use-favorites.ts`, star in `GameTile`.
+- 3a main: `stores/manual/` (file, `exe-path`, `manual-launch` verbatim args), `manual-handlers.ts`, `manual.ts`, `security/ipc-sender.ts`. 3b UI: `ModalDialog`, `ManualGameDialogs`, `ManualGameMenu`, `use-manual-actions`, `manual-messages`.
+- 4a covers in main: `steam-title-search.ts`, `manual-covers.ts` (once per session, miss per title), `setCoverSource`, `coversChanged`. Privacy draft line added.
+**Fixed by review (~60 findings, every fix re-reviewed):** e.g. hidden characters could fake the args dialog; dialogs closed themselves in dev (StrictMode); a locked list file looped icon rewrites.
+**Verified (Linux container, headless Electron + CDP):** search, stars, manual launch with args, menu/dialog keyboard paths, icons. Steam is blocked by this container's proxy.
+**Next:** Step 4b, then the Windows test (args dialog, path with spaces, .lnk refused, admin-only and console exes).
+**Blocked by:** nothing. Open: admin-only exe error code (EACCES expected); console exes have no window; icons are 32 px; older items below.
 
 ## 2026-10-03 (scope fix, library layout redesign, installed-game covers)
 **Decided:** Milestone 5 moves to v2 to match spec.md (numbering kept: v1 is 4 → 6 → 7). New spec `docs/features/library-layout.md` after the user's Windows test of M2–M4 ("UI doesn't fit the window"): sidebar from one store list (`shared/stores.ts`), Installed + Library per view (Epic view has no Library), whole card plays/installs (`steam://install/<appid>`), one app-wide 5 s pause and message line, Settings screen, opens on All games. User's calls: Steam non-games stay listed; an unreadable drive at startup is a known limit.
@@ -33,10 +44,3 @@ Milestone 6: manual games, search, filters, favorites, sort by store (filters/fa
 **Fixed by review:** 8 rounds before commit; four fixes needed a follow-up fix (see lessons.md).
 **Verified (macOS dev, fixture `PROGRAMDATA`, real key):** Rocket League poster (820,839-byte PNG), Bloons placeholder + no-cover mark, form collapses, invalid key message. Not verified: failed-image retry; Windows.
 **Blocked by:** nothing. Open: user to regenerate the SteamGridDB key (it was in the chat); `getSecret` reads a locked `secrets.json` as "no key" (Steam too); always-failing cover flashes per focus; `setApiKey` throws its message; no IPC sender check; Steam `getLaunchUrl` doesn't encode its id; cancelled sign-in doesn't abort its request; M3 open items (archive).
-
-## 2026-09-21 (Epic Windows check + stage 2 research)
-**Windows check (by hand, one PC, Windows 11 build 26200, launcher under `C:\Program Files\Epic Games\`):** `com.epicgames.launcher://apps/<AppName>?action=launch&silent=true` started Rocket League (AppName `Sugar`) from a cold launcher, so the plain `AppName` URL form is confirmed and the longer `namespace:itemId:appName` form wasn't needed. Only one game was launched; Bloons TD 6 (opaque GUID AppName) was not.
-**Real manifests corrected an assumption:** base games have an EMPTY `MainGameAppName`, not one equal to `AppName` (my fixtures had it wrong; the parser already treated empty as "no information"). Titles keep `®`; paths are backslashes; categories can lack `"public"`. Fixtures now use the real shape and there are tests built from the two real manifests (278 tests). Not verified: a real DLC manifest (none installed); manifests also carry `MainGameCatalogItemId`/`MainGameCatalogNamespace` if the current DLC check ever misses.
-**Stage 2 research (no code, public sources only):** (1) Epic's official login (Epic Account Services OAuth) has only `basic_profile`, `friends_list`, `presence` scopes, so it cannot list a library, and needs a client secret that can't be bundled. (2) Community launchers log in with Epic's own public launcher client id (browser login, authorization code, token exchange, then library/catalog endpoints); that means presenting as Epic's launcher, the code likely has to be pasted (loopback probably doesn't work), and token lifetimes are unknown (one community doc lists 2 h access / 8 h refresh for a Fortnite client). (3) Cover lookup without login does not work: the public storefront GraphQL answered a Cloudflare browser challenge (HTTP 403) to a plain client, and the launcher catalog service (namespace + item ids, which the manifests carry) answered 401. Real Epic covers need the stage 2 login. (4) Epic's EULA could not be read (legal pages redirect to a login), so the terms question is open. Untested alternative for login-free covers: SteamGridDB with a user-supplied key.
-**Next:** decide stage 2 (login + library + covers), or leave Epic on placeholders.
-**Blocked by:** nothing. Open items: app not run on Windows; Bloons-style opaque AppName launch unverified; DLC detection unverified on a real DLC manifest; Epic EULA unread; whether a manifest's `CatalogItemId` matches the launcher catalog's item id (needs a login to test); plus the items in the Milestone 4 stage 1 entry below.

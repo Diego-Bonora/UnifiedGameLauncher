@@ -72,3 +72,6 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 - [2026-10-03] Spacing here is 8 px per Tailwind unit (`w-28` = 224 px), not 4 px. Halve stock Tailwind numbers; screenshot new layout via CDP.
 - [2026-10-03] Typed a known icon library's SVG path from memory. Draw icons from basic shapes; nothing copied.
 - [2026-10-03] `kill $P` in zsh passes all PIDs as one argument. Use `xargs kill < pidfile`.
+- [2026-10-03] Checked new dialogs only in the production build; StrictMode in dev made them close themselves. Check new UI in the dev app too.
+- [2026-10-03] A sync that notifies → window re-reads → sync again could loop when saves fail. Try each item once per session; count only real changes.
+- [2026-10-03] Exact-text edit batches partly applied after Prettier reflowed files. Re-read after formatting; small anchored edits; grep the result.
