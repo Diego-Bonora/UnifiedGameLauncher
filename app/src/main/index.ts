@@ -5,7 +5,9 @@ import { APP_ID, APP_NAME } from '@shared/app-info'
 import { isAllowedExternalUrl, isSameOrigin } from './security/external-url'
 import { registerEpicIpc } from './ipc/epic'
 import { registerFavoritesIpc } from './ipc/favorites'
+import { registerManualIpc } from './ipc/manual'
 import { createFavoritesStore } from './storage/favorites-store'
+import { createManualGamesFile } from './stores/manual'
 import { registerSteamIpc } from './ipc/steam'
 import { registerSteamAuthIpc } from './ipc/steam-auth'
 import { registerCoverProtocol, registerCoverScheme } from './library/cover-protocol'
@@ -104,6 +106,9 @@ if (!app.requestSingleInstanceLock()) {
     // The one favorites store for the app (see registerFavoritesIpc).
     const favorites = createFavoritesStore()
     registerFavoritesIpc(favorites)
+    // The one manual-games file for the app; removing a game also drops its
+    // star through the same favorites store.
+    registerManualIpc(createManualGamesFile(), favorites)
     registerSteamAuthIpc()
     registerCoverProtocol()
 

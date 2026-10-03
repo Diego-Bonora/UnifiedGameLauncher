@@ -3,6 +3,7 @@ import type { StoreId } from '../stores'
 import { epicLaunchRequestSchema } from './epic'
 import type { FavoriteRequest } from './favorites-channels'
 import { steamAppRequestSchema } from './steam'
+import { manualIdSchema } from './manual'
 
 export { FAVORITES_CHANNELS } from './favorites-channels'
 export type { FavoriteRequest, FavoriteSetResult } from './favorites-channels'
@@ -12,7 +13,8 @@ export type { FavoriteRequest, FavoriteSetResult } from './favorites-channels'
 // StoreId: a new store doesn't compile until its id rule is added here.
 const ID_SCHEMAS: Record<StoreId, z.ZodType<string>> = {
   steam: steamAppRequestSchema.shape.appId.max(20),
-  epic: epicLaunchRequestSchema.shape.appName
+  epic: epicLaunchRequestSchema.shape.appName,
+  manual: manualIdSchema
 }
 
 function isStoreId(value: string): value is StoreId {

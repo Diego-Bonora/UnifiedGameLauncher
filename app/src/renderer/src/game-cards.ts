@@ -1,4 +1,5 @@
 import type { EpicInstalledGame } from '@shared/ipc/epic-channels'
+import type { ManualGameView } from '@shared/ipc/manual-channels'
 import type { SteamInstalledGame, SteamOwnedGame } from '@shared/ipc/steam-channels'
 import { STORES, gameKey, type StoreId } from '@shared/stores'
 
@@ -14,7 +15,7 @@ export interface GameCard {
   // never used as a React key or to tell cards apart.
   key: string
   store: StoreId
-  // The store's own id: Steam appId, Epic AppName.
+  // The store's own id: Steam appId, Epic AppName, manual game UUID.
   id: string
   title: string
   coverUrl: string | null
@@ -33,6 +34,8 @@ export interface LibraryData {
   // still loading): installed Steam games then show placeholders.
   steamOwned: SteamOwnedGame[] | null
   epicInstalled: EpicInstalledGame[]
+  // Always installed.
+  manualGames: ManualGameView[]
   // Starred card keys: these sort first in their section.
   favorites: ReadonlySet<string>
 }
@@ -89,6 +92,13 @@ export function buildViewSections(view: LibraryView, data: LibraryData): ViewSec
   if (inView(view, 'epic')) {
     for (const game of data.epicInstalled) {
       installed.push(card('epic', game.appName, game.title, game.coverUrl))
+    }
+  }
+
+  if (inView(view, 'manual')) {
+    // No covers yet: Step 4 (docs/features/library-tools.md) adds them.
+    for (const game of data.manualGames) {
+      installed.push(card('manual', game.id, game.title, null))
     }
   }
 

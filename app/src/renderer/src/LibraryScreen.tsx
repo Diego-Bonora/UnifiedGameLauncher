@@ -16,6 +16,7 @@ import type { HandOffKind } from './hand-off'
 import { screenLabel } from './navigation'
 import type { EpicLibrary } from './use-epic-library'
 import type { Favorites } from './use-favorites'
+import type { ManualGames } from './use-manual-games'
 import type { HandOff } from './use-hand-off'
 import type { SteamLibrary } from './use-steam-library'
 
@@ -23,6 +24,7 @@ interface LibraryScreenProps {
   view: LibraryView
   steam: SteamLibrary
   epic: EpicLibrary
+  manual: ManualGames
   handOff: HandOff
   favorites: Favorites
   // App-wide, so it survives a view switch (docs/features/library-tools.md).
@@ -45,7 +47,8 @@ function OpenSettingsButton({ onClick }: { onClick: () => void }): React.JSX.Ele
 const INSTALLED_EMPTY: Record<LibraryView, string> = {
   all: 'No installed games found on this PC.',
   steam: 'No Steam games installed on this PC.',
-  epic: 'No Epic games installed on this PC.'
+  epic: 'No Epic games installed on this PC.',
+  manual: 'No manual games yet. Add any game by picking its .exe.'
 }
 
 // One game view (All games, or one store): an Installed section, then a
@@ -55,6 +58,7 @@ function LibraryScreen({
   view,
   steam,
   epic,
+  manual,
   handOff,
   favorites,
   searchQuery,
@@ -70,9 +74,10 @@ function LibraryScreen({
         steamInstalled,
         steamOwned,
         epicInstalled: epic.games,
+        manualGames: manual.list.games,
         favorites: favorites.keys
       }),
-    [view, steamInstalled, steamOwned, epic.games, favorites.keys]
+    [view, steamInstalled, steamOwned, epic.games, manual.list.games, favorites.keys]
   )
   // Filtered after the sections are built, so search never changes which
   // section a game is in or the order. The rest of this screen (focus moves
@@ -109,8 +114,11 @@ function LibraryScreen({
   const hasLibrary = viewHasLibrary(view)
   const includesSteam = view === 'all' || view === 'steam'
   const includesEpic = view === 'all' || view === 'epic'
+  const includesManual = view === 'all' || view === 'manual'
   const installedLoading =
-    (includesSteam && !steam.installedLoaded) || (includesEpic && !epic.loaded)
+    (includesSteam && !steam.installedLoaded) ||
+    (includesEpic && !epic.loaded) ||
+    (includesManual && !manual.loaded)
   // Also while the first connection read runs (so a connected user never sees
   // the "Connect Steam" line flash by), and until the installed list is in:
   // before that every owned game would show here as "Install", including the
@@ -173,6 +181,14 @@ function LibraryScreen({
     heading?.focus()
   })
 
+  // Per store, so a new store can't silently borrow another's token. Manual
+  // games have no covers until Step 4.
+  const coverRetryTokens: Record<GameCard['store'], number | undefined> = {
+    steam: steam.coverRetryToken,
+    epic: epic.coverRetryToken,
+    manual: undefined
+  }
+
   const renderCards = (cards: GameCard[], kind: HandOffKind): React.ReactNode =>
     cards.map((card) => (
       <li key={card.key} className="min-w-0">
@@ -180,7 +196,7 @@ function LibraryScreen({
           card={card}
           kind={kind}
           showBadge={view === 'all'}
-          coverRetryToken={card.store === 'epic' ? epic.coverRetryToken : steam.coverRetryToken}
+          coverRetryToken={coverRetryTokens[card.store]}
           busy={handOff.activeKey !== null}
           active={handOff.activeKey === card.key}
           onStart={() => handOff.start(card, kind)}
@@ -257,6 +273,18 @@ function LibraryScreen({
         />
       </div>
 
+      {includesManual && manual.loaded && !manual.list.readable && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-danger">
+            Couldn&apos;t read your manual games. Nothing will be changed until the app can read
+            them again.
+          </p>
+          <button type="button" onClick={manual.reload} className={BUTTON}>
+            Try again
+          </button>
+        </div>
+      )}
+
       {includesEpic && showCoverKeyRejectedNotice(epic.coverStatus) && (
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-danger">{COVER_KEY_REJECTED_NOTICE}</p>
@@ -272,12 +300,16 @@ function LibraryScreen({
           loading={installedLoading}
           empty={
             // A search can't fix an empty list, so only a list that had games
-            // gets the "no match" line.
-            <p className="text-muted">
-              {searching && allSections.installed.length > 0
-                ? noMatchMessage('installed', shownQuery)
-                : INSTALLED_EMPTY[view]}
-            </p>
+            // gets the "no match" line. The Manual view says nothing more when
+            // its list couldn't be read: the notice above already explains,
+            // and "No manual games yet" wouldn't be true.
+            view === 'manual' && !manual.list.readable ? null : (
+              <p className="text-muted">
+                {searching && allSections.installed.length > 0
+                  ? noMatchMessage('installed', shownQuery)
+                  : INSTALLED_EMPTY[view]}
+              </p>
+            )
           }
           hasCards={sections.installed.length > 0}
         >

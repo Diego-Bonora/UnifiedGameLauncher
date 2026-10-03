@@ -33,6 +33,10 @@ function callStore(card: GameCard, kind: HandOffKind): Promise<HandOffOutcome> {
       // than quietly launching instead.
       if (kind === 'install') return Promise.reject(new Error('Epic has no install'))
       return window.api.epic.launch(card.id)
+    case 'manual':
+      // Always installed: there is nothing to install.
+      if (kind === 'install') return Promise.reject(new Error('Manual games have no install'))
+      return window.api.manual.launch(card.id)
     default: {
       // A store added to shared/stores.ts doesn't compile until it is
       // handled here, instead of falling through to another store's launcher.

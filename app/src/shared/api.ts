@@ -7,6 +7,12 @@ import type {
 } from './ipc/epic-channels'
 import type { FavoriteSetResult } from './ipc/favorites-channels'
 import type {
+  ManualChangeResult,
+  ManualGamesList,
+  ManualLaunchResult,
+  ManualPickResult
+} from './ipc/manual-channels'
+import type {
   SteamCachedLibrary,
   SteamConnectionStatus,
   SteamHandOffResult,
@@ -57,6 +63,23 @@ export interface RendererApi {
     // New covers are on disk or the cover status changed: re-read both.
     // Returns a function that stops listening.
     onCoversChanged: (callback: () => void) => () => void
+  }
+  // Games added by picking an .exe (docs/features/library-tools.md). Every
+  // call resolves for expected outcomes (as data) and rejects only for a
+  // malformed request. No call takes or returns an exe path.
+  manual: {
+    list: () => Promise<ManualGamesList>
+    // Opens main's file dialog; main keeps the pick for add or cancelAdd.
+    pickExe: () => Promise<ManualPickResult>
+    // Non-empty arguments are saved only after main's own confirmation.
+    add: (title: string, args: string) => Promise<ManualChangeResult>
+    cancelAdd: () => Promise<void>
+    rename: (id: string, title: string) => Promise<ManualChangeResult>
+    setArgs: (id: string, args: string) => Promise<ManualChangeResult>
+    // Opens main's file dialog for the new .exe.
+    changeExe: (id: string) => Promise<ManualChangeResult>
+    remove: (id: string) => Promise<ManualChangeResult>
+    launch: (id: string) => Promise<ManualLaunchResult>
   }
   // Starred games, as `<store>:<id>` keys (docs/features/library-tools.md).
   favorites: {

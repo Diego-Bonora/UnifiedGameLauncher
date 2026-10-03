@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { RendererApi } from '@shared/api'
 import { EPIC_CHANNELS } from '@shared/ipc/epic-channels'
 import { FAVORITES_CHANNELS } from '@shared/ipc/favorites-channels'
+import { MANUAL_CHANNELS } from '@shared/ipc/manual-channels'
 import { STEAM_CHANNELS } from '@shared/ipc/steam-channels'
 
 // Deliberately not exposing Electron's generic ipcRenderer: the renderer gets
@@ -43,6 +44,17 @@ const api: RendererApi = {
         ipcRenderer.removeListener(EPIC_CHANNELS.coversChanged, listener)
       }
     }
+  },
+  manual: {
+    list: () => ipcRenderer.invoke(MANUAL_CHANNELS.list),
+    pickExe: () => ipcRenderer.invoke(MANUAL_CHANNELS.pickExe),
+    add: (title, args) => ipcRenderer.invoke(MANUAL_CHANNELS.add, { title, args }),
+    cancelAdd: () => ipcRenderer.invoke(MANUAL_CHANNELS.cancelAdd),
+    rename: (id, title) => ipcRenderer.invoke(MANUAL_CHANNELS.rename, { id, title }),
+    setArgs: (id, args) => ipcRenderer.invoke(MANUAL_CHANNELS.setArgs, { id, args }),
+    changeExe: (id) => ipcRenderer.invoke(MANUAL_CHANNELS.changeExe, { id }),
+    remove: (id) => ipcRenderer.invoke(MANUAL_CHANNELS.remove, { id }),
+    launch: (id) => ipcRenderer.invoke(MANUAL_CHANNELS.launch, { id })
   },
   favorites: {
     list: () => ipcRenderer.invoke(FAVORITES_CHANNELS.list),

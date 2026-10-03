@@ -1,15 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod'
 import { handOffToSteam, libraryKey, listSteamInstalledGames } from './steam-handlers'
-import type { StoreProvider } from '../stores/store-provider'
+import type { UrlStoreProvider } from '../stores/store-provider'
 import type { SteamInstallScan } from '../stores/steam'
 
 const tf2 = { storeGameId: '440', title: 'Team Fortress 2', installPath: 'C:\\Steam\\common\\TF2' }
 const dota = { storeGameId: '570', title: 'Dota 2', installPath: 'D:\\Lib\\common\\dota' }
 
-function fakeSteam(overrides: Partial<StoreProvider> = {}): StoreProvider {
+function fakeSteam(overrides: Partial<UrlStoreProvider> = {}): UrlStoreProvider {
   return {
     store: 'steam',
+    launchesBy: 'url',
     getInstalledGames: async () => [],
     getLaunchUrl: (id) => `steam://rungameid/${id}`,
     getInstallUrl: (id) => `steam://install/${id}`,

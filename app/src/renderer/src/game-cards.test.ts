@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EpicInstalledGame } from '@shared/ipc/epic-channels'
+import type { ManualGameView } from '@shared/ipc/manual-channels'
 import type { SteamInstalledGame, SteamOwnedGame } from '@shared/ipc/steam-channels'
 import { buildViewSections, focusAfterChange, viewHasLibrary, type LibraryData } from './game-cards'
 
@@ -41,6 +42,7 @@ const data: LibraryData = {
     epic('Sugar', 'Rocket League®', 'app-cover://epic/Sugar'),
     epic('Bloons', 'Bloons TD 6')
   ],
+  manualGames: [],
   favorites: new Set()
 }
 
@@ -101,6 +103,7 @@ describe('buildViewSections', () => {
       steamInstalled: [installed('123', 'Same Id')],
       steamOwned: null,
       epicInstalled: [epic('123', 'Same Id')],
+      manualGames: [],
       favorites: new Set()
     }
     const keys = buildViewSections('all', clash).installed.map((card) => card.key)
@@ -112,6 +115,7 @@ describe('buildViewSections', () => {
       steamInstalled: [installed('2', 'alpha'), installed('1', 'Beta')],
       steamOwned: null,
       epicInstalled: [epic('A', 'Alpha')],
+      manualGames: [],
       favorites: new Set()
     }
     const once = buildViewSections('all', mixed).installed.map((card) => card.key)
@@ -121,6 +125,40 @@ describe('buildViewSections', () => {
       steamInstalled: [...mixed.steamInstalled].reverse()
     }
     expect(buildViewSections('all', reversed).installed.map((card) => card.key)).toEqual(once)
+  })
+})
+
+describe('buildViewSections: manual games', () => {
+  const manual = (id: string, title: string): ManualGameView => ({
+    id,
+    title,
+    args: '',
+    coverSource: 'steam'
+  })
+  const withManual = {
+    ...data,
+    manualGames: [manual('0f8fad5b-d9cb-469f-a165-70867728950e', 'Doom (1993)')]
+  }
+
+  it('lists manual games as installed, in All games and the Manual view only', () => {
+    expect(titles(buildViewSections('manual', withManual).installed)).toEqual(['Doom (1993)'])
+    expect(buildViewSections('manual', withManual).library).toBeNull()
+    expect(titles(buildViewSections('all', withManual).installed)).toContain('Doom (1993)')
+    expect(titles(buildViewSections('steam', withManual).installed)).not.toContain('Doom (1993)')
+    expect(titles(buildViewSections('epic', withManual).installed)).not.toContain('Doom (1993)')
+  })
+
+  it('keys them by store like every other card', () => {
+    const card = buildViewSections('manual', withManual).installed[0]
+    expect(card?.key).toBe('manual:0f8fad5b-d9cb-469f-a165-70867728950e')
+    expect(card?.store).toBe('manual')
+  })
+
+  it('does not add a Library section to All games for them', () => {
+    expect(titles(buildViewSections('all', withManual).library)).toEqual([
+      'Counter-Strike',
+      'Dota 2'
+    ])
   })
 })
 

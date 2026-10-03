@@ -41,25 +41,31 @@ User's calls (2026-10-03):
 ### Adding a game
 - An **Add game** button in the Manual view's header, and in its empty state ("No manual games yet. Add any game by picking its .exe.").
 - Main opens the native file dialog itself, limited to `.exe` files. The renderer never sends a path to main, for any manual-game action.
-- After picking, a small form: **Title** (pre-filled from the file name without `.exe`) and **Launch arguments** (empty). Save adds the game; Cancel adds nothing.
-- Picking an `.exe` that's already a manual game: "That game is already in your library" and nothing is added. Paths are compared the way Windows does: case-insensitive, after resolving the real path (so `C:\Games\X.exe` and `c:\games\x.EXE` are one game). Change .exe uses the same check against the other manual games.
+- After picking, a small form: **Title** (pre-filled from the file name without `.exe`) and **Launch arguments** (empty). Save adds the game; Cancel adds nothing. Main keeps the picked path itself until Save or Cancel (one pick at a time); the form only sends the title and arguments.
+- Picking an `.exe` that's already a manual game: "That game is already in your library" and nothing is added. Paths are compared the way Windows does: case-insensitive, after resolving the real path (so `C:\Games\X.exe` and `c:\games\x.EXE` are one game). The resolved path is what is saved, so only the newly picked file is ever resolved: a saved game on an unplugged drive or offline share can't stall the check. A link named `.exe` that resolves to anything else is refused. Change .exe uses the same check against the other manual games.
 
 ### Editing
 A **⋯** button on each manual card (its own button beside the card, like the star) opens a small menu:
 - **Rename**: same title rules as adding.
 - **Launch arguments**: edit the arguments.
+- **Confirming arguments (user's call, 2026-10-03, after the spec review):** whenever non-empty arguments that differ from the saved ones are saved (in the Add form or here), main shows a native Windows dialog before saving: "Save launch arguments for <exe file name>?", the arguments, "Only choose Save if you typed these yourself.", buttons **Save** / **Cancel** (Cancel is the default). The app window can't draw, skip or answer this dialog, so a compromised window can't quietly turn a manual game like `powershell.exe` into "run any command". Cancel saves nothing and leaves the form open. Clearing the arguments needs no confirmation.
 - **Change .exe**: main opens the file dialog again and replaces the path (for a moved or reinstalled game). Title, arguments, star and cover stay.
 - **Cover**: a two-option choice, "Steam cover" or "Exe icon" (radio items with `aria-checked`). See section 4.
 - **Remove**: asks "Remove <title> from your library? Its files on your PC are not touched." Removing deletes the entry, its star and its saved cover/icon; never any game files.
 
-Titles: 1–200 characters after trimming. Arguments: up to 1,000 characters. Both validated in main.
+Titles: 1–200 characters after trimming. Arguments: up to 1,000 characters. Both validated in main. Arguments may hold only characters that show as themselves: no control or format characters (zero-width spaces and joiners, right-to-left overrides) and no line or paragraph separators, so the confirmation dialog always shows exactly what is saved. Titles block control characters, direction overrides and separators too, but keep the joiners real writing needs (Persian and Indic spelling, emoji such as families and flags); the forms check the same rules before sending (code review, 2026-10-03: many ordinary games take dangerous flags too, such as Chromium's `--gpu-launcher` or Source's `+exec`). The same rules apply when reading `manual-games.json`.
+- **One dialog at a time:** while a file or confirmation dialog is open, another pick, Change .exe or arguments save answers "busy" instead of opening a second one. A new pick forgets any earlier, unfinished one, and so does a reload or crash of the window.
+- **Only the app's page may call these channels:** main checks that each request comes from the app's own top-level page (the bundled file, or the dev server in development).
 
 ### Launching
 - Clicking the card plays it. The renderer sends only the manual game's id; main looks up the saved path and arguments.
 - Main starts the saved `.exe` directly: no shell, working folder = the exe's folder, detached so closing the app doesn't close the game. Arguments are passed to the game **exactly as typed**, as the raw command-line tail after the quoted exe path (Windows programs split their own command line, so the app doesn't split or re-quote: `-config="C:\My Games\a.ini"` arrives unchanged). Line breaks are not allowed in arguments.
 - Before starting, main checks the path still exists, still ends in `.exe`, and is a file. If not, the result is "missing", and the message line says "Couldn't find <title>'s .exe. Use Change .exe to find it again." (no raw error).
-- Start failures (Windows refuses to run it, for example blocked by antivirus) report "couldn't start" as data: "Couldn't start <title>. Check that the game still runs from its folder."
+- Start failures report as data:
+  - **Windows refused** (access denied, which is also what an exe that needs administrator rights gets when started directly: Windows can't show its admin prompt for it; user's call, 2026-10-03): "Windows wouldn't start <title>. If it needs to run as administrator, start it once from its folder, or set it to always run as administrator in its Properties." Not verified on Windows yet which error code an admin-only exe gives; this is the expected one.
+  - **Anything else:** "Couldn't start <title>. Check that the game still runs from its folder."
 - The app-wide 5 s pause and message line work as for Steam and Epic.
+- **Known limit (to check on Windows):** a game is started detached (so closing the app doesn't close it), and Windows then gives a console-type `.exe` (some emulators, DOS wrappers, tools) no console window: it runs invisibly. Accepted for v1 unless the Windows test shows it matters.
 - **Security:** this is a narrow exception to "openExternal only for `steam://` and `com.epicgames.launcher://`", which stays as it is. Only paths the user picked in the native dialog, saved by main, are ever run; the renderer can't name a path or a program. `.bat`/`.cmd`/`.lnk` are not accepted.
 
 ### Saved data

@@ -7,10 +7,12 @@
 //
 // `hasLibrary`: whether the app can list games the user owns but hasn't
 // installed. Epic can't (no Epic login, by Epic's terms), so its views show
-// only the Installed section.
+// only the Installed section. Manual games are ones the user added by picking
+// an .exe (docs/features/library-tools.md): always installed, no Library.
 export const STORES = [
   { id: 'steam', name: 'Steam', hasLibrary: true },
-  { id: 'epic', name: 'Epic', hasLibrary: false }
+  { id: 'epic', name: 'Epic', hasLibrary: false },
+  { id: 'manual', name: 'Manual', hasLibrary: false }
 ] as const satisfies readonly { id: string; name: string; hasLibrary: boolean }[]
 
 export type StoreId = (typeof STORES)[number]['id']

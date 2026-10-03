@@ -5,11 +5,12 @@ import {
   listEpicInstalledGames,
   planEpicLaunch
 } from './epic-handlers'
-import type { InstalledGame, StoreProvider } from '../stores/store-provider'
+import type { InstalledGame, UrlStoreProvider } from '../stores/store-provider'
 
-function fakeProvider(games: InstalledGame[], launchUrl?: string): StoreProvider {
+function fakeProvider(games: InstalledGame[], launchUrl?: string): UrlStoreProvider {
   return {
     store: 'epic',
+    launchesBy: 'url',
     getInstalledGames: async () => games,
     getLaunchUrl: (id) =>
       launchUrl ?? `com.epicgames.launcher://apps/${id}?action=launch&silent=true`
@@ -76,7 +77,7 @@ describe('listEpicInstalledGames', () => {
 describe('listEpicInstalledGames failure', () => {
   it('returns an empty list, not a rejection, when detection throws', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const provider: StoreProvider = {
+    const provider: UrlStoreProvider = {
       ...fakeProvider([]),
       getInstalledGames: async () => {
         throw new Error('boom')
@@ -89,7 +90,7 @@ describe('listEpicInstalledGames failure', () => {
   it('does not report a failed detection as a list of games', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const onListed = vi.fn()
-    const provider: StoreProvider = {
+    const provider: UrlStoreProvider = {
       ...fakeProvider([]),
       getInstalledGames: async () => Promise.reject(new Error('boom'))
     }
@@ -105,7 +106,7 @@ describe('detectEpicAppNames', () => {
 
   it('returns [] instead of rejecting when detection fails', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const provider: StoreProvider = {
+    const provider: UrlStoreProvider = {
       ...fakeProvider([]),
       getInstalledGames: async () => Promise.reject(new Error('boom'))
     }
@@ -193,7 +194,7 @@ describe('launchEpicGame', () => {
   it('reports notInstalled, without opening anything, when detection throws', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const openExternal = vi.fn(async () => {})
-    const provider: StoreProvider = {
+    const provider: UrlStoreProvider = {
       ...fakeProvider([alpha]),
       getInstalledGames: async () => {
         throw new Error('boom')

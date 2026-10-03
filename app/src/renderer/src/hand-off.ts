@@ -1,7 +1,9 @@
 import type { EpicLaunchResult } from '@shared/ipc/epic-channels'
+import type { ManualLaunchResult } from '@shared/ipc/manual-channels'
 import type { SteamHandOffResult } from '@shared/ipc/steam-channels'
 import type { StoreId } from '@shared/stores'
 import { epicLaunchMessage } from './epic-launch-messages'
+import { manualLaunchMessage } from './manual-launch-messages'
 
 // Pure logic for handing a game to its store's launcher, kept out of the hook
 // so it can be unit tested. The only place that words a launch or install
@@ -12,7 +14,7 @@ export type HandOffKind = 'launch' | 'install'
 
 // What the call returned, or 'failed' when the call itself broke (main never
 // intends that: it returns expected problems as data).
-export type HandOffOutcome = SteamHandOffResult | EpicLaunchResult | 'failed'
+export type HandOffOutcome = SteamHandOffResult | EpicLaunchResult | ManualLaunchResult | 'failed'
 
 export interface HandOffFeedback {
   message: string
@@ -65,6 +67,17 @@ export function handOffFeedback(
         message: epicLaunchMessage(outcome.reason),
         tone: 'danger',
         refreshList: outcome.reason === 'notInstalled'
+      }
+    case 'notFound':
+    case 'missing':
+    case 'refused':
+    case 'unreadable':
+    case 'failed':
+      return {
+        message: manualLaunchMessage(outcome.reason, game.title),
+        tone: 'danger',
+        // Removed meanwhile: the shown list is out of date.
+        refreshList: outcome.reason === 'notFound'
       }
   }
 }

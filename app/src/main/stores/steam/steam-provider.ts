@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { parseAppManifest } from './app-manifest'
 import { parseLibraryFolders } from './library-folders'
 import { getSteamInstallPath } from './steam-registry'
-import type { InstalledGame, StoreProvider } from '../store-provider'
+import type { InstalledGame, UrlStoreProvider } from '../store-provider'
 
 // Filesystem calls as an injectable dependency: real node:fs/promises by
 // default, fakes in tests, so the composition logic below is testable
@@ -146,8 +146,9 @@ export async function scanSteamInstall(): Promise<SteamInstallScan> {
   return scanInstalledSteamGames(await getSteamInstallPath())
 }
 
-export const steamProvider: StoreProvider = {
+export const steamProvider: UrlStoreProvider = {
   store: 'steam',
+  launchesBy: 'url',
   // Lossy: an unreadable library just contributes no games here, which reads
   // as "uninstalled". Anything that shows or saves installed state must use
   // scanSteamInstall instead, which says what couldn't be read.

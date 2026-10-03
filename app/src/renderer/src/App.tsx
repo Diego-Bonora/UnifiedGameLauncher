@@ -7,6 +7,7 @@ import type { Screen } from './navigation'
 import { useEpicLibrary } from './use-epic-library'
 import { useFavorites } from './use-favorites'
 import { useHandOff } from './use-hand-off'
+import { useManualGames } from './use-manual-games'
 import { useSteamLibrary } from './use-steam-library'
 
 const SIDEBAR_ID = 'app-sidebar'
@@ -33,9 +34,11 @@ function App(): React.JSX.Element {
   // (docs/features/library-layout.md, "App-wide state").
   const steam = useSteamLibrary()
   const epic = useEpicLibrary()
+  const manual = useManualGames()
   const favorites = useFavorites()
   const handOff = useHandOff((store) => {
     if (store === 'epic') epic.reloadGames()
+    if (store === 'manual') manual.reload()
   })
 
   // Always opens on All games; the last view is not remembered (spec).
@@ -173,6 +176,7 @@ function App(): React.JSX.Element {
               view={screen}
               steam={steam}
               epic={epic}
+              manual={manual}
               handOff={handOff}
               favorites={favorites}
               searchQuery={searchQuery}

@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parseEpicManifest } from './epic-manifest'
-import type { InstalledGame, StoreProvider } from '../store-provider'
+import type { InstalledGame, UrlStoreProvider } from '../store-provider'
 
 // Same injectable-fs pattern as the Steam provider, so detection is testable
 // without Windows or the Epic launcher installed.
@@ -73,8 +73,9 @@ export async function getInstalledEpicGames(
   return games
 }
 
-export const epicProvider: StoreProvider = {
+export const epicProvider: UrlStoreProvider = {
   store: 'epic',
+  launchesBy: 'url',
   getInstalledGames() {
     return getInstalledEpicGames(getEpicManifestsDir())
   },

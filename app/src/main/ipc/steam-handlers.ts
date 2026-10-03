@@ -4,7 +4,7 @@ import {
   type SteamHandOffResult,
   type SteamInstalledResult
 } from '@shared/ipc/steam'
-import type { StoreProvider } from '../stores/store-provider'
+import type { UrlStoreProvider } from '../stores/store-provider'
 import type { SteamInstallScan } from '../stores/steam'
 import { isAllowedExternalUrl } from '../security/external-url'
 
@@ -105,7 +105,7 @@ export type SteamHandOff = 'launch' | 'install'
 // Steam itself handles a launch for a game that isn't (it offers the install).
 export async function handOffToSteam(
   kind: SteamHandOff,
-  provider: StoreProvider,
+  provider: UrlStoreProvider,
   rawRequest: unknown,
   openExternal: (url: string) => Promise<void>
 ): Promise<SteamHandOffResult> {

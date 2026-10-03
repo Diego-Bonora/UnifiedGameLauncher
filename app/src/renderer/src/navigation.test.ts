@@ -11,7 +11,12 @@ describe('LIBRARY_ENTRIES', () => {
   })
 
   it('uses plain store names, no logos or extra words', () => {
-    expect(LIBRARY_ENTRIES.map((entry) => entry.label)).toEqual(['All games', 'Steam', 'Epic'])
+    expect(LIBRARY_ENTRIES.map((entry) => entry.label)).toEqual([
+      'All games',
+      'Steam',
+      'Epic',
+      'Manual'
+    ])
   })
 })
 
@@ -19,6 +24,7 @@ describe('screenLabel', () => {
   it('names every screen', () => {
     expect(screenLabel('all')).toBe('All games')
     expect(screenLabel('epic')).toBe('Epic')
+    expect(screenLabel('manual')).toBe('Manual')
     expect(screenLabel('settings')).toBe('Settings')
   })
 })

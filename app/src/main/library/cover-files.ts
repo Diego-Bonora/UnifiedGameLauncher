@@ -1,6 +1,7 @@
 import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
+import { MANUAL_ID_PATTERN } from '@shared/ipc/manual'
 import type { StoreId } from '@shared/stores'
 
 // The store-agnostic half of the cover cache: where each store's covers live,
@@ -22,7 +23,9 @@ export type CoverStore = StoreId
 // are the manifest AppName (same charset the manifest parser accepts).
 const STORES: Record<CoverStore, { folder: string; host: string; idPattern: RegExp }> = {
   steam: { folder: 'covers', host: 'covers', idPattern: /^\d+$/ },
-  epic: { folder: 'covers-epic', host: 'epic', idPattern: /^[A-Za-z0-9_-]{1,100}$/ }
+  epic: { folder: 'covers-epic', host: 'epic', idPattern: /^[A-Za-z0-9_-]{1,100}$/ },
+  // Manual games: the id is the UUID main made (Step 4 saves covers here).
+  manual: { folder: 'covers-manual', host: 'manual', idPattern: MANUAL_ID_PATTERN }
 }
 
 // The only file extensions a cached cover can have. Which one a downloaded

@@ -5,7 +5,7 @@ import {
   type EpicInstalledGame,
   type EpicLaunchResult
 } from '@shared/ipc/epic'
-import type { InstalledGame, StoreProvider } from '../stores/store-provider'
+import type { InstalledGame, UrlStoreProvider } from '../stores/store-provider'
 import { isAllowedExternalUrl } from '../security/external-url'
 
 // The logic behind the Epic IPC channels, kept free of any Electron import so
@@ -26,7 +26,7 @@ const NO_COVERS: EpicListCovers = {
 }
 
 export async function listEpicInstalledGames(
-  provider: StoreProvider,
+  provider: UrlStoreProvider,
   covers: EpicListCovers = NO_COVERS
 ): Promise<EpicInstalledGame[]> {
   let games: InstalledGame[]
@@ -68,7 +68,7 @@ export async function listEpicInstalledGames(
 // AppNames installed right now, for the cover refetch after a key change.
 // [] when detection fails (listEpicInstalledGames never rejects), which the
 // cover handlers treat as "nothing to fetch now".
-export async function detectEpicAppNames(provider: StoreProvider): Promise<string[]> {
+export async function detectEpicAppNames(provider: UrlStoreProvider): Promise<string[]> {
   return (await listEpicInstalledGames(provider)).map((game) => game.appName)
 }
 
@@ -77,7 +77,7 @@ export type EpicLaunchPlan = { url: string } | { notInstalled: true }
 // Throws for a malformed payload (a caller bug). A well-formed request for a
 // game that isn't installed is an expected outcome and comes back as data.
 export async function planEpicLaunch(
-  provider: StoreProvider,
+  provider: UrlStoreProvider,
   rawRequest: unknown
 ): Promise<EpicLaunchPlan> {
   const { appName } = epicLaunchRequestSchema.parse(rawRequest)
@@ -97,7 +97,7 @@ export async function planEpicLaunch(
 }
 
 export async function launchEpicGame(
-  provider: StoreProvider,
+  provider: UrlStoreProvider,
   rawRequest: unknown,
   openExternal: (url: string) => Promise<void>
 ): Promise<EpicLaunchResult> {
