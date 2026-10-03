@@ -16,6 +16,7 @@ None. One local user per Windows account.
 - Delete saved tokens only when the store explicitly rejects them. Never because a request failed offline.
 - User-entered API keys (Steam, SteamGridDB) are never deleted automatically, not even when rejected; the app shows a friendly message and the user removes the key.
 - `shell.openExternal` accepts only allow-listed protocols: `steam://`, `com.epicgames.launcher://`. Never arbitrary URLs.
+- Manual games are the one thing the app runs directly: main starts only an `.exe` the user picked in a native file dialog and main saved. The renderer sends a manual-game id, never a path or program. See @docs/features/library-tools.md.
 - All IPC payloads are validated in the main process.
 
 ## Auth Flow

@@ -16,8 +16,8 @@ One local user per Windows account. There are no roles or permissions tiers. Sto
 - Epic: installed detection + launch, no Epic login. Owned-but-not-installed Epic games are not shown. Decided 2026-10-02 after reading Epic's EULA/ToS: an Epic login would mean acting as Epic's own launcher. See @docs/features/epic-covers.md
 - Epic cover art from SteamGridDB, using a SteamGridDB API key the user enters (optional; without it, tiles show the title on a placeholder)
 - Library cache and offline mode
-- Manual games (pick an .exe)
-- Search, filters, favorites, sort by store
+- Manual games (pick an .exe): a "Manual" store in the sidebar; rename, launch arguments, change .exe, remove; cover from Steam by exact title, else the exe's icon. See @docs/features/library-tools.md
+- Search by name in every game view, and a favorite star that pins a game to the top of its section ("sort by store" = the per-store sidebar views). See @docs/features/library-tools.md
 - In-app privacy policy
 - Windows installer distributed through GitHub Releases
 - Auto-updates via electron-updater + GitHub Releases (Milestone 7; works with an unsigned installer)
@@ -37,11 +37,13 @@ One local user per Windows account. There are no roles or permissions tiers. Sto
 - `Game { id, store, storeGameId, title, coverPath, installed, installPath?, favorite, lastPlayed? }`
 - `StoreConnection { store, status }` (Steam: public Steam ID; no store tokens are stored today)
 - `Settings`
+- Favorites: a set of card keys `<store>:<id>` (`favorites.json`)
+- `ManualGame { id, title, exePath, args, cover? }` (`manual-games.json`; `id` is a UUID made by main)
 - Epic cover state per `AppName`: `{ lastSeenInstalled, noCoverCheckedAt? }` (prunes covers after 30 days unseen; re-asks SteamGridDB about misses after 7 days). See @docs/features/epic-covers.md
 
-Stored as JSON in `%APPDATA%\<APP_NAME>`. Tokens and API keys (Steam Web API key, SteamGridDB key) go only through Electron `safeStorage`. Cover images live in per-store folders (`covers/` for Steam, `covers-epic/` for Epic).
+Stored as JSON in `%APPDATA%\<APP_NAME>`. Tokens and API keys (Steam Web API key, SteamGridDB key) go only through Electron `safeStorage`. Cover images live in per-store folders (`covers/` for Steam, `covers-epic/` for Epic, `covers-manual/` for manual games).
 
 ## Key Flows
 1. **Startup:** load cached library, render immediately, refresh in the background, show an offline pill if there is no network.
 2. **Connect Steam:** open Steam's own login page in the system browser, receive the public Steam ID, the user adds their Steam Web API key (saved encrypted), sync the library. Epic has no connect step; adding a SteamGridDB key only adds covers.
-3. **Play / Install:** click, then the app opens an allow-listed protocol URL (`steam://`, `com.epicgames.launcher://`), and the official launcher does the work.
+3. **Play / Install:** click, then the app opens an allow-listed protocol URL (`steam://`, `com.epicgames.launcher://`), and the official launcher does the work. A manual game is the one exception: main runs the `.exe` the user picked in a native file dialog.
