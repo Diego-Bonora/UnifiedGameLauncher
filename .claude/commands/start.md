@@ -29,3 +29,6 @@ current project state, and confirms what you want to work on today.
 - Do not start any work until the summary is confirmed
 - If any context file is missing, flag it before proceeding
 - If progress.md looks stale or inconsistent with spec.md, say so
+
+## Gotchas
+- [2026-10-15] progress.md on the current branch said "start Milestone 6", but Milestone 6 was already built on another branch that was never merged to `main` (cloud sessions start from `main`). Before summarising, run `git fetch origin && git log --oneline --all -10` and read `docs/progress.md` from any branch with newer commits (`git show <branch>:docs/progress.md`); say which branch holds the latest work.

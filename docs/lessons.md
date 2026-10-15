@@ -10,6 +10,18 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-10-15 — /start summarised from a branch that didn't have the latest work
+**What happened:** The session's branch was made from `main`, whose progress.md said "Next: Milestone 6". All of Milestone 6 (5 commits, 687 tests) already lived on `claude/epic-clarke-xvw1eb`, never merged. The /start summary told the user to begin Milestone 6; the user caught it ("didn't we already start with manual games?").
+**Rule going forward:** At /start, run `git fetch origin && git log --oneline --all -10` and read progress.md from any branch with newer commits before summarising. Say which branch holds the latest work, and offer to bring it in (a fast-forward when possible).
+
+## 2026-10-15 — The renderer guessed why main sent a null cover URL
+**What happened:** To keep covers from going blank on a hiccup, `nextManualList` kept any shown URL that came back null (except a poster after a rename). Review showed main also removes covers on purpose under the same title (a poster whose bookkeeping couldn't be saved, a re-read icon), so dead URLs would have stuck. And main's `listFiles()` already turned a locked folder into "no files", so the hiccup and "no cover" looked identical.
+**Rule going forward:** When a consumer must tell "unknown" from "none", have the producer say it explicitly (`coversReadable: false`), as narrowly as possible (only the items it affects), and let the consumer trust every other answer. Don't infer it from a null, and don't widen a shared "forgiving" helper that other code relies on: add a new signal next to it.
+
+## 2026-10-15 — "Newest request wins" dropped a change's answer once a background reload existed
+**What happened:** `useManualGames` showed only the answer to the newest request. Adding a reload on every "covers changed" notice meant a reload started while a change waited on main's confirmation window won, though it was answered before the save: the message said "Saved" and the list showed the old arguments. Found by review; not reproducible here (no tool can click a native dialog in the container).
+**Rule going forward:** Treat a change's answer as the saved state: order changes among themselves (a separate counter), and when a read overtook a change, show the change's answer and read again. Whenever you add a new caller of an existing reload, check what it does to requests already in flight.
+
 ## 2026-10-03 — Checked new dialogs only in the production build; in dev every dialog closed itself
 **What happened:** The Milestone 6 dialogs (native `<dialog>`) were checked in the app through the production build, where they worked. A review then spotted that React StrictMode (on in dev only) runs effects twice: the cleanup's `dialog.close()` fired a late `close` event that the second run's handler took as "the browser closed it" and cancelled. In `npm run dev` every Add/Rename/Remove dialog would have flashed and vanished. Confirmed by removing the fix and running the dev app headless with a debug port.
 **Rule going forward:** Check new UI in the dev app too (`npx electron-vite dev --remoteDebuggingPort=9333 --noSandbox` under `xvfb-run` in the cloud container), not only the build. Effects that call imperative browser APIs (showModal/close, focus, listeners) must survive mount → cleanup → mount, and event handlers must check the element's current state, not assume the event is fresh.

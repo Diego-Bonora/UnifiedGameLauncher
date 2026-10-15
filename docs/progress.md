@@ -3,15 +3,27 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4 and the library layout work on Windows. Milestone 6 is nearly done on `claude/epic-clarke-xvw1eb` (up to `72ffa4c`, 687 tests): search, a favorite star, and manual games (a "Manual" store: add an .exe, rename, launch arguments confirmed in a native dialog, Change .exe, remove). Manual covers work in main (exe icon; Steam poster by exact title) but cards don't show them yet. Milestone 6 is untested on Windows.
+Milestones 0–4, the library layout and all of Milestone 6 are built and on `main` (`588ad7f`, 704 tests): search, a favorite star, and manual games (a "Manual" store: add an .exe, rename, launch arguments confirmed in a native dialog, Change .exe, remove, and a per-game Cover choice: Steam poster by exact title or the exe's icon). Milestone 6 is untested on Windows.
 
 ## In Progress
-Milestone 6, Step 4b: show manual covers on the cards and add the Cover choice to the ⋯ menu.
+Nothing. Waiting for the user's Windows test of Milestone 6.
 
 ## Next Up
-Step 4b (renderer): card shows `posterUrl` for Steam cover, else the title placeholder with `iconUrl` centred; "Steam cover / Exe icon" radio items in `ManualGameMenu` (`menuitemradio`, `window.api.manual.setCoverSource`); preload `setCoverSource` + `onCoversChanged` → `manual.reload()`; covers only upgrade, never blank. Then the user's Windows test of Milestone 6.
+The Windows test of Milestone 6 (installer from run 38766994554): search, stars, Add game (path with spaces, `.lnk` refused), arguments + native confirmation, Change .exe, Remove, Steam cover vs Exe icon, an admin-only and a console exe. Then Milestone 7.
 
 ---
+
+## 2026-10-15 (Milestone 6 Step 4b: manual covers on the cards; merged to main)
+**Found at /start:** Milestone 6 lived only on `claude/epic-clarke-xvw1eb`, not `main`; fast-forwarded to it (see lessons.md).
+**Built (`588ad7f`, 704 tests, 687 before):**
+- Renderer: `game-cards.ts` (`iconUrl`; poster only with Steam cover), `GameCoverArt.tsx` (32 px exe icon on the placeholder), `ManualGameMenu.tsx` ("Cover" `menuitemradio` group), `use-manual-actions.ts` (`setCover`), `manual-messages.ts`, `use-manual-games.ts` (`onCoversChanged`), new `manual-view.ts`.
+- Preload/shared: `setCoverSource`, `onCoversChanged`, `ManualGamesList.coversReadable`.
+- Main: `covers.urls()` throws when the folder can't be listed (ENOENT = no covers) or a game's own cover file can't be `stat`ed (`mtimeMs: null`; the sync still sees it), giving `coversReadable: false`.
+**Decisions:** the window keeps shown covers only when main says `coversReadable: false`; otherwise main's nulls are the truth (a poster main drops on purpose must disappear), and a rename still drops the poster. A manual change's answer is shown unless a newer change started (`latestChangeRef`), and the list is read again if a read overtook it. Merged to `main` by fast-forward (user's call).
+**Fixed by review (3 rounds):** a covers reload could hide a saved change; the renderer guessed why a URL was null; one locked unrelated file stopped all cover updates. Last fix not re-reviewed (user's call).
+**Verified (headless dev app + CDP, seeded games):** each cover kind; menu by keyboard; switching both ways; a re-read icon reaches the window with no loop; an unlistable folder keeps shown covers. Not verified: a real Steam poster (proxy blocks Steam); the overtaken-change fix live (needs clicking main's native dialog; no xdotool here).
+**Next:** the Windows test of Milestone 6.
+**Blocked by:** nothing. Open: after Change .exe to an exe with no readable icon, main keeps showing the old exe's icon (pre-existing, in `manual-covers.ts`); the sync's own `listFiles()` still treats an unlistable folder as empty (pre-existing); older items below.
 
 ## 2026-10-03 (Milestone 6: search, favorites, manual games, manual covers in main)
 **Decided (spec `docs/features/library-tools.md`, user's calls):** "sort by store" = the sidebar views plus a new **Manual** store; filters = one search box per view (shared query); favorites = a star that pins to the top (no Favorites view); manual covers = per-game choice **Steam cover** (exact-title Steam match, falls back to the exe icon) or **Exe icon** (title never sent). New launch arguments are saved only after main's own native confirmation dialog; an exe refused by Windows (incl. admin-only) gets a "run as administrator" message. `StoreProvider` split into `UrlStoreProvider` (Steam, Epic) and `DirectStoreProvider` (Manual). Steam store search verified with one plain request from the user's Mac (keyless; fixture `stores/manual/fixtures/storesearch-hollow-knight.json`).
@@ -36,11 +48,3 @@ Step 4b (renderer): card shows `posterUrl` for Steam cover, else the title place
 **Verified:** macOS dev via CDP screenshots (columns follow the width, drawer focus/Esc, install message, focus after a removed card); Windows by the user (layout, play, install, the four covers).
 **Next:** Milestone 6.
 **Blocked by:** nothing. Open: `SteamPath` spelling and `reg` exit code 1 unverified on Windows; whether `openExternal` rejects when nothing handles `steam://` (Epic's `launcherUnavailable` too); a sign-in finishing before the first connection read can be overwritten by it; "Open Settings" focus untried in the app; a leftover Steam registry key keeps old games for the session; Node 20 actions in CI; user to rotate the SteamGridDB key; older items in the 2026-10-02 entry.
-
-## 2026-10-02 (Epic covers from SteamGridDB, replacing Epic login)
-**Decided:** Epic's Store EULA (2025-01-15) and ToS (2026-09-10) authorize no third-party clients; a library login means acting as Epic's launcher (EULA §2(c),(e)) and risks the user's account. So: no Epic login, covers from SteamGridDB with a user key, no owned-not-installed games, placeholder when no match (no title search), focus retries only after a failed sync. Spec: `docs/features/epic-covers.md`.
-**Verified first (real requests):** `/grids/egs/{AppName}` (catalog ids 404); Bloons TD 6 linked to Steam only, so no cover; images on `cdn2.steamgriddb.com`; key = 32 hex; one request per game.
-**Built:** Step 2 `main/library/` (`cover-files.ts` shared out of `cover-cache.ts`, `covers-epic/`, `steamgriddb.ts`, `epic-cover-state.ts`, `epic-cover-cache.ts`, `app-cover://epic/<AppName>`); Step 3 IPC (`epic-cover-handlers.ts`, `notify-windows.ts`, `coverUrl`); Step 4 renderer (`EpicCoverKeyForm.tsx`, `epic-cover-messages.ts`, upgrade-only covers, `GameCoverArt` retry token). 432 tests (278 before).
-**Fixed by review:** 8 rounds before commit; four fixes needed a follow-up fix (see lessons.md).
-**Verified (macOS dev, fixture `PROGRAMDATA`, real key):** Rocket League poster (820,839-byte PNG), Bloons placeholder + no-cover mark, form collapses, invalid key message. Not verified: failed-image retry; Windows.
-**Blocked by:** nothing. Open: user to regenerate the SteamGridDB key (it was in the chat); `getSecret` reads a locked `secrets.json` as "no key" (Steam too); always-failing cover flashes per focus; `setApiKey` throws its message; no IPC sender check; Steam `getLaunchUrl` doesn't encode its id; cancelled sign-in doesn't abort its request; M3 open items (archive).

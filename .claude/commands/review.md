@@ -62,3 +62,4 @@ Say: "No issues found. Ready to run /close and commit."
 
 ## Gotchas
 - [2026-10-03] A review subagent ran `tsc -p tsconfig.web.json` without `--composite false` and left `app/tsconfig.web.tsbuildinfo` in the repo. Tell the subagent to pass `--composite false` (or use `npm run typecheck`), and check `git status` for stray files after every review.
+- [2026-10-15] Fixed the findings of re-review rounds 2 and 3 without asking, and committed the round-3 fix unreviewed. Every round's findings go to the user with the Step 3 question; say plainly when a fix is committed without a further review.

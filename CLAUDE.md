@@ -75,3 +75,6 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 - [2026-10-03] Checked new dialogs only in the production build; StrictMode in dev made them close themselves. Check new UI in the dev app too.
 - [2026-10-03] A sync that notifies → window re-reads → sync again could loop when saves fail. Try each item once per session; count only real changes.
 - [2026-10-03] Exact-text edit batches partly applied after Prettier reflowed files. Re-read after formatting; small anchored edits; grep the result.
+- [2026-10-15] /start summarised `main`'s progress.md while Milestone 6 sat on an unmerged branch. Check `git log --all` and newer branches' progress.md first.
+- [2026-10-15] The renderer guessed "hiccup" from a null cover URL. Have the producer say "unknown" explicitly, narrowly; trust every other answer.
+- [2026-10-15] A new background reload made "newest request wins" drop a saved change. Order changes separately; re-read when a read overtook one.

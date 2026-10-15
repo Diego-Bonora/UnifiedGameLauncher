@@ -51,5 +51,6 @@ Wait for the answer before doing anything else.
 
 ## Gotchas
 - Do not assume progress.md is up to date — if it looks stale, say so
+- [2026-10-15] Newer work can sit on an unmerged branch: check `git log --oneline --all` and that branch's progress.md before summarising
 - lessons.md is the most important file to read carefully; 
   it contains hard-won corrections that prevent repeated mistakes
