@@ -3,15 +3,24 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4, the library layout and all of Milestone 6 are built and on `main` (`588ad7f`, 704 tests): search, a favorite star, and manual games (a "Manual" store: add an .exe, rename, launch arguments confirmed in a native dialog, Change .exe, remove, and a per-game Cover choice: Steam poster by exact title or the exe's icon). Milestone 6 is untested on Windows.
+Milestones 0–4, the library layout and all of Milestone 6 are on `main` (`755ce03`, 709 tests), including the new "★ Favorites" / "All" sub-groups. The user's Windows test of Milestone 6 is half done: search, Add game, launch, Steam cover, Rename, Change .exe and Exe icon work. The current installer is from run 38780888761. Xbox app games can't be manual games; they are a v2 store (draft spec `docs/features/xbox-store.md`).
 
 ## In Progress
-Nothing. Waiting for the user's Windows test of Milestone 6.
+The rest of the Windows test of Milestone 6, with the installer from run 38780888761.
 
 ## Next Up
-The Windows test of Milestone 6 (installer from run 38766994554): search, stars, Add game (path with spaces, `.lnk` refused), arguments + native confirmation, Change .exe, Remove, Steam cover vs Exe icon, an admin-only and a console exe. Then Milestone 7.
+Finish the Windows test: Favorites sub-groups; launch arguments (Notepad + `"C:\Test Folder\hello.txt"`, native confirmation); `C:\Windows\regedit.exe` (expect "Windows wouldn't start…"); `ipconfig.exe` (console limit); Remove. Fix what it finds, then Milestone 7.
 
 ---
+
+## 2026-10-15 (Windows test of Milestone 6, Xbox v2 spec, Favorites sub-groups)
+**Windows test (user, installer run 38766994554):** works: search, Add game (Overwatch, path with spaces), launch, Steam cover by exact title, Rename, Change .exe, Exe icon switch. Found: Minecraft Launcher in `C:\XboxGames\…\Content` can't be picked (Windows permission error in the file dialog itself, not the app).
+**Xbox (v2, docs only, `8881575`):** `docs/features/xbox-store.md` (draft) + real samples in `docs/sources/xbox-samples/`. Verified on the user's PC: `.GamingRoot` format (`RGBX`, count, UTF-16LE names), `Content\MicrosoftGame.config` readable (title, package name, StoreId), app ID via `Get-StartApps`, `explorer.exe "shell:AppsFolder\<app id>"` launches, displaycatalog Poster 1440×2160 without a key. Spec review settled: card id = package name, launch only if Windows' package record matches the folder, `explorer.exe` by full path, no `shell:` on the allow-list, sender check, per-drive failures; 13 open items each with one check.
+**Built (`0d05510` spec, `755ce03` code, 709 tests):** Favorites sub-groups (user's call): a section showing a starred game splits into "★ Favorites" above "All" (h3; drawn star `aria-hidden`; heading rows `role="none"` so the list counts only games, user's call (a)). `game-cards.ts` `sectionItems` (one keyed list, cards moved not rebuilt), `LibraryScreen.tsx`, `GameTile.tsx` (`StarIcon` exported), `use-favorites.ts` (`loaded`; sections wait for it, no unsplit-then-split jump).
+**Fixed by review:** spec review (11 findings, e.g. focus lost when a card changes group, rebuild of every card on the first star, startup jump) folded into the spec; code review clean.
+**Verified (headless dev app + CDP):** star/unstar by keyboard keeps focus and recreates no card; last star removes the headings; search without a starred match shows none. Not verified on Windows yet.
+**Next:** the rest of the Windows test.
+**Blocked by:** nothing. Open: the 2026-10-15 Step 4b items below; Xbox open items in its spec.
 
 ## 2026-10-15 (Milestone 6 Step 4b: manual covers on the cards; merged to main)
 **Found at /start:** Milestone 6 lived only on `claude/epic-clarke-xvw1eb`, not `main`; fast-forwarded to it (see lessons.md).
@@ -35,16 +44,3 @@ The Windows test of Milestone 6 (installer from run 38766994554): search, stars,
 **Verified (Linux container, headless Electron + CDP):** search, stars, manual launch with args, menu/dialog keyboard paths, icons. Steam is blocked by this container's proxy.
 **Next:** Step 4b, then the Windows test (args dialog, path with spaces, .lnk refused, admin-only and console exes).
 **Blocked by:** nothing. Open: admin-only exe error code (EACCES expected); console exes have no window; icons are 32 px; older items below.
-
-## 2026-10-03 (scope fix, library layout redesign, installed-game covers)
-**Decided:** Milestone 5 moves to v2 to match spec.md (numbering kept: v1 is 4 → 6 → 7). New spec `docs/features/library-layout.md` after the user's Windows test of M2–M4 ("UI doesn't fit the window"): sidebar from one store list (`shared/stores.ts`), Installed + Library per view (Epic view has no Library), whole card plays/installs (`steam://install/<appid>`), one app-wide 5 s pause and message line, Settings screen, opens on All games. User's calls: Steam non-games stay listed; an unreadable drive at startup is a known limit.
-**Built (6 commits, `e08b537`..`42d94c7`, 509 tests, 432 before):**
-- Step 1 (main/shared): `scanInstalledSteamGames` reports unreadable library folders (a gone Steam drive or failed `reg` query is a failed read, not "no games"); `libraryKey` normalizes paths; `steam-handlers.ts` (no Electron import): launch/install return `{ accepted }` as data, Epic's result renamed to match; `steam:install` channel (zod, digits only); URL builders encode ids.
-- Step 2 (renderer state): `use-steam-library`, `use-epic-library`, `use-hand-off` hold all state app-wide; tested helpers `steam-installed.ts` (keep games on unreadable drives), `game-cards.ts` (sections per view, `store:id` keys, shared collator), `hand-off.ts` (all wording).
-- Step 3: `Sidebar.tsx`, `navigation.ts`, `SettingsScreen.tsx`, shell in `App.tsx` (drawer with inert content, focus return); key actions + busy flags moved into the hooks.
-- Step 4: `GameTile.tsx`, `GameSection.tsx`, `LibraryScreen.tsx` rebuilt (focus to a section heading when a focused card moves or goes); old Epic section/tile deleted.
-- Covers fix: installed Steam games not in the owned list (Brawlhalla, Warframe, Unturned free-to-play; Forager family-shared) are looked up via `IStoreBrowseService/GetItems` (no key; one plain request checked first), once per session, 60 s backoff, cancellable; the owned cleanup keeps covers of games seen installed this session; Steam cards get a cover retry token.
-**Fixed by review:** each step got a review plus a review of its fixes (≈25 findings), e.g. a gone Steam drive read as "no games", Install offered before the installed list loaded, an 85 ms re-sort per click.
-**Verified:** macOS dev via CDP screenshots (columns follow the width, drawer focus/Esc, install message, focus after a removed card); Windows by the user (layout, play, install, the four covers).
-**Next:** Milestone 6.
-**Blocked by:** nothing. Open: `SteamPath` spelling and `reg` exit code 1 unverified on Windows; whether `openExternal` rejects when nothing handles `steam://` (Epic's `launcherUnavailable` too); a sign-in finishing before the first connection read can be overwritten by it; "Open Settings" focus untried in the app; a leftover Steam registry key keeps old games for the session; Node 20 actions in CI; user to rotate the SteamGridDB key; older items in the 2026-10-02 entry.

@@ -10,6 +10,10 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-10-15 — PowerShell checks pasted as one block came back half empty
+**What happened:** To capture real Xbox samples I gave the user six read-only PowerShell commands in one block. The hex dump of `.GamingRoot` and the catalog's image list printed nothing: when several commands' outputs of different types share one pipeline display, PowerShell formats them as one table and drops what doesn't fit. A `-like "*Minecraft*"` filter also arrived without its asterisks. Each cost another round trip with the user.
+**Rule going forward:** Give PowerShell checks one command per code block, to run one at a time, and end each with `| Out-String` (or `| Format-List`) so its output always prints. Prefer filters without wildcards (`-match "4297127D64EC6"`) when the user will copy them.
+
 ## 2026-10-15 — /start summarised from a branch that didn't have the latest work
 **What happened:** The session's branch was made from `main`, whose progress.md said "Next: Milestone 6". All of Milestone 6 (5 commits, 687 tests) already lived on `claude/epic-clarke-xvw1eb`, never merged. The /start summary told the user to begin Milestone 6; the user caught it ("didn't we already start with manual games?").
 **Rule going forward:** At /start, run `git fetch origin && git log --oneline --all -10` and read progress.md from any branch with newer commits before summarising. Say which branch holds the latest work, and offer to bring it in (a fast-forward when possible).
