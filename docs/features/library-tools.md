@@ -94,3 +94,4 @@ Titles: 1–200 characters after trimming. Arguments: up to 1,000 characters. Bo
 - Manual covers from a user-picked image, SteamGridDB covers for manual games.
 - Play time or "recently played" for any store.
 - Importing games from other launchers (that's Milestone 5, v2).
+- Games installed by the Xbox app (known limit, found 2026-10-15): Windows refuses to hand their `.exe` to the file picker, and they must be started through Windows anyway. They come as their own store in v2 (@docs/features/xbox-store.md).

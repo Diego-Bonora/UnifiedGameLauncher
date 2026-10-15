@@ -23,7 +23,7 @@ One local user per Windows account. There are no roles or permissions tiers. Sto
 - Auto-updates via electron-updater + GitHub Releases (Milestone 7; works with an unsigned installer)
 
 ## Out of Scope (v1)
-- GOG, Ubisoft Connect, Battle.net, EA app (planned for v2)
+- GOG, Ubisoft Connect, Battle.net, EA app, and Xbox app games (planned for v2; Xbox: installed detection, launch through Windows, store covers; draft spec in @docs/features/xbox-store.md)
 - Epic login and Epic owned library (Epic's terms; revisit only if Epic offers an official library API)
 - SteamGridDB covers for Steam games (Steam's own CDN covers them) and SteamGridDB search by title
 - Code signing (installer is unsigned; SmartScreen warning accepted)
