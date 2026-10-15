@@ -5,7 +5,7 @@ Decided 2026-10-03. Milestone 6 adds search, favorites and manual games. Builds 
 User's calls (2026-10-03):
 - **Sort by store** needs no sort control: the sidebar already shows one view per store. It means adding one more "store", **Manual**, for games the user adds by hand.
 - **Filters** means a search box in every game view that filters by name. No other filters (no Installed-only toggle, no hidden games, no Favorites view).
-- **Favorites** are a star that pins a game to the top of its section.
+- **Favorites** are a star that pins a game to the top of its section. Changed 2026-10-15 after the user's Windows test: starred games get their own **"★ Favorites" sub-group** inside each section, above an **"All"** sub-group (see section 2).
 - Build order, one step each, smallest first: 1) search, 2) favorites, 3) manual games (store entry, add/edit/remove, launch), 4) manual game covers.
 
 ## 1. Search
@@ -22,8 +22,17 @@ User's calls (2026-10-03):
 
 ## 2. Favorites
 
-- A **star** button on every card (all stores, both sections). Starred games sort first in their section, then by title as today. In All games a starred game is first among all stores' games.
-- The star is its own button beside the card's main button, never nested inside it (a button inside a button is invalid HTML and breaks keyboard use). It is visible on starred cards, and on hover/focus for the others. Label: "Favorite <title>", with `aria-pressed` for the state (a label that also flipped would make screen readers say "Remove … from favorites, pressed"); the mouse tooltip says "Add to favorites" / "Remove from favorites". Pressing it from the keyboard keeps focus on the star, even when the card moves.
+- A **star** button on every card (all stores, both sections).
+- **Sub-groups (user's call, 2026-10-15):** a section (Installed or Library) is split in two when the games it shows include at least one starred game:
+  - **"★ Favorites"**: the starred games, by title. In All games, starred games from every store mix here.
+  - **"All"**: the rest, by title as today. The user kept the name "All" after the spec review pointed out it repeats in the All games view.
+
+  A section with no starred games has no sub-headings and looks exactly as before. Play and Install still follow the section (a starred Library game installs), so no card needs a new marker. Applies in every view; Epic and Manual have only Installed, so only that section splits.
+- **Structure (spec review, 2026-10-15):** sub-headings are plain level-3 headings (`h3`) under the section's `h2`; they are not regions and never take focus. The ★ is the same drawn star (SVG) as on the cards, hidden from screen readers (`aria-hidden`), so the heading reads "Favorites", never "black star". The focus-after-refresh rule from the layout spec is unchanged: a focused card that moves or goes sends focus to the section's `h2`.
+- **Which sub-headings show:** decided from what is shown after search. A sub-group with nothing to show has no heading: if every shown game is starred, the section shows only "★ Favorites"; if no shown game is starred (none starred, or none matching the search), the section shows no sub-headings at all. The section's "No … match" line shows only when nothing in the section matches.
+- **Loading and notices:** while a section shows its loading placeholders, it has no sub-headings. Setup prompts, notices, the offline pill and Try again stay above both sub-groups, as they are today.
+- **Starring or unstarring** moves the card between the sub-groups at once, **without rebuilding the other cards** in the section (no flicker, failed covers aren't retried, no slowdown on large libraries) and **with keyboard focus kept on the card's star**, also when a failed save moves it back. The star's pressed state is what a screen reader announces; there is no extra announcement.
+- **No jump at startup:** a section is not split until the saved favorites have been read once, so the first draw is already final (it doesn't draw unsplit and then split).
 - Starring doesn't launch or install, and works while the app-wide launch pause is on.
 - **Saved in main**, in `favorites.json` in the app data folder (plain JSON, temp-file-then-rename like `connections.json`). It holds the set of card keys (`<store>:<id>`). A game moving between Installed and Library keeps its star. An uninstalled or no-longer-owned game's key is kept (it costs nothing and the star comes back if the game does). Removing a manual game removes its key.
 - **IPC:** one channel to read the set, one to set a key on or off. The key is validated in main with zod (known store id, id of the right shape for that store, length cap). An unreadable or invalid `favorites.json` reads as "no favorites" at startup (later in a session, main keeps answering with the last list it read, so stars don't vanish while the file is briefly locked), and is **never overwritten while it can't be read**: starring then fails with the save message below, and is tried again on the next star (spec review: "not overwritten until the user stars something" would still replace the good file with a one-star one). The read failure is logged.

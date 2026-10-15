@@ -17,7 +17,7 @@ One local user per Windows account. There are no roles or permissions tiers. Sto
 - Epic cover art from SteamGridDB, using a SteamGridDB API key the user enters (optional; without it, tiles show the title on a placeholder)
 - Library cache and offline mode
 - Manual games (pick an .exe): a "Manual" store in the sidebar; rename, launch arguments, change .exe, remove; a per-game cover choice: Steam cover (by exact title, falling back to the exe's icon) or Exe icon. See @docs/features/library-tools.md
-- Search by name in every game view, and a favorite star that pins a game to the top of its section ("sort by store" = the per-store sidebar views). See @docs/features/library-tools.md
+- Search by name in every game view, and a favorite star that puts a game in a "★ Favorites" group at the top of its section, above "All" ("sort by store" = the per-store sidebar views). See @docs/features/library-tools.md
 - In-app privacy policy
 - Windows installer distributed through GitHub Releases
 - Auto-updates via electron-updater + GitHub Releases (Milestone 7; works with an unsigned installer)
