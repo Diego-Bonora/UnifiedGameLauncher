@@ -151,3 +151,27 @@ export function focusAfterChange(
   if (inLibrary) return focused.section === 'library' ? null : 'library'
   return focused.section
 }
+
+// What one section shows, in order: its cards with the "★ Favorites" and
+// "All" sub-headings placed among them (docs/features/library-tools.md,
+// "Favorites"). One flat list, so a starred card stays the same element when
+// it moves between the groups (no rebuilding the section, focus kept on its
+// star). The cards come sorted favorites-first by buildViewSections, and this
+// runs on what search left, so headings follow what is shown: a group with
+// nothing to show gets no heading, and a section with no starred card shows
+// none at all.
+export type SectionItem =
+  { kind: 'heading'; group: 'favorites' | 'all' } | { kind: 'card'; card: GameCard }
+
+export function sectionItems(cards: GameCard[], favorites: ReadonlySet<string>): SectionItem[] {
+  const starred = cards.filter((card) => favorites.has(card.key))
+  if (starred.length === 0) return cards.map((card) => ({ kind: 'card', card }))
+  const rest = cards.filter((card) => !favorites.has(card.key))
+  const items: SectionItem[] = [{ kind: 'heading', group: 'favorites' }]
+  for (const card of starred) items.push({ kind: 'card', card })
+  if (rest.length > 0) {
+    items.push({ kind: 'heading', group: 'all' })
+    for (const card of rest) items.push({ kind: 'card', card })
+  }
+  return items
+}

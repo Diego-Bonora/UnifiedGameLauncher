@@ -1,12 +1,13 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import GameSection from './GameSection'
-import GameTile from './GameTile'
+import GameTile, { StarIcon } from './GameTile'
 import ManualGameMenu from './ManualGameMenu'
 import SearchBox from './SearchBox'
 import { COVER_KEY_REJECTED_NOTICE, showCoverKeyRejectedNotice } from './epic-cover-messages'
 import {
   buildViewSections,
   focusAfterChange,
+  sectionItems,
   viewHasLibrary,
   type GameCard,
   type LibraryView,
@@ -122,12 +123,16 @@ function LibraryScreen({
   const installedLoading =
     (includesSteam && !steam.installedLoaded) ||
     (includesEpic && !epic.loaded) ||
-    (includesManual && !manual.loaded)
+    (includesManual && !manual.loaded) ||
+    // Until the saved stars are in, so a section is drawn split (or not)
+    // once, not unsplit and then split (spec, "No jump at startup").
+    !favorites.loaded
   // Also while the first connection read runs (so a connected user never sees
   // the "Connect Steam" line flash by), and until the installed list is in:
   // before that every owned game would show here as "Install", including the
   // ones already on this PC.
-  const libraryLoading = !steam.connectionLoaded || steam.loadingOwned || !steam.installedLoaded
+  const libraryLoading =
+    !steam.connectionLoaded || steam.loadingOwned || !steam.installedLoaded || !favorites.loaded
 
   // Keyboard focus that would be lost when a refresh moves the focused card to
   // the other section (React then unmounts it) or removes it. Tracked through
@@ -221,23 +226,50 @@ function LibraryScreen({
     </button>
   )
 
+  // Cards and the "★ Favorites" / "All" sub-headings in one list, so a card
+  // starred or unstarred is moved, not rebuilt (spec, "Favorites"). Sub-
+  // headings span the grid's width; their list item has no list role, so the
+  // list's item count is the number of games. Deliberate (user's call,
+  // 2026-10-15): strict checkers may flag a heading directly in a list, but a
+  // plain list item would make screen readers count the headings as games.
   const renderCards = (cards: GameCard[], kind: HandOffKind): React.ReactNode =>
-    cards.map((card) => (
-      <li key={card.key} className="min-w-0">
-        <GameTile
-          card={card}
-          kind={kind}
-          showBadge={view === 'all'}
-          coverRetryToken={coverRetryTokens[card.store]}
-          busy={handOff.activeKey !== null}
-          active={handOff.activeKey === card.key}
-          onStart={() => handOff.start(card, kind)}
-          favorite={favorites.keys.has(card.key)}
-          onToggleFavorite={() => favorites.toggle(card)}
-          extra={card.store === 'manual' ? manualMenu(card.id) : undefined}
-        />
-      </li>
-    ))
+    sectionItems(cards, favorites.keys).map((item) =>
+      item.kind === 'heading' ? (
+        <li key={`heading:${item.group}`} role="none" className="col-span-full">
+          <h3 className="flex items-center gap-1 text-sm font-semibold text-muted">
+            {item.group === 'favorites' ? (
+              <>
+                <span aria-hidden="true" className="text-accent">
+                  <StarIcon filled />
+                </span>
+                Favorites
+              </>
+            ) : (
+              'All'
+            )}
+          </h3>
+        </li>
+      ) : (
+        renderCard(item.card, kind)
+      )
+    )
+
+  const renderCard = (card: GameCard, kind: HandOffKind): React.ReactNode => (
+    <li key={card.key} className="min-w-0">
+      <GameTile
+        card={card}
+        kind={kind}
+        showBadge={view === 'all'}
+        coverRetryToken={coverRetryTokens[card.store]}
+        busy={handOff.activeKey !== null}
+        active={handOff.activeKey === card.key}
+        onStart={() => handOff.start(card, kind)}
+        favorite={favorites.keys.has(card.key)}
+        onToggleFavorite={() => favorites.toggle(card)}
+        extra={card.store === 'manual' ? manualMenu(card.id) : undefined}
+      />
+    </li>
+  )
 
   const { owned, notice, ownedError, needsRetry } = steam
   const libraryNotices = needsRetry && (

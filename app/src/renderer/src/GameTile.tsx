@@ -33,7 +33,8 @@ const STAR_POINTS = Array.from({ length: 10 }, (_, i) => {
   return `${(12 + radius * Math.cos(angle)).toFixed(2)},${(12.5 + radius * Math.sin(angle)).toFixed(2)}`
 }).join(' ')
 
-function StarIcon({ filled }: { filled: boolean }): React.JSX.Element {
+// Also the decorative star on the "Favorites" sub-heading.
+export function StarIcon({ filled }: { filled: boolean }): React.JSX.Element {
   return (
     <svg
       aria-hidden="true"

@@ -6,6 +6,9 @@ export const FAVORITE_SAVE_PROBLEM = "Couldn't save your favorite. Try again."
 export interface Favorites {
   // Starred card keys (`<store>:<id>`).
   keys: ReadonlySet<string>
+  // false until main's saved list has been read once (or the read failed):
+  // sections wait for it, so they aren't drawn unsplit and then split.
+  loaded: boolean
   toggle: (card: GameCard) => void
   // The save problem line, or null.
   problem: string | null
@@ -22,6 +25,7 @@ export interface Favorites {
 // failure), so a slow early answer can't undo a later click.
 export function useFavorites(): Favorites {
   const [keys, setKeys] = useState<ReadonlySet<string>>(() => new Set())
+  const [loaded, setLoaded] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   // The current keys for toggle, which must not wait for a re-render: two
   // fast clicks on one star must flip it twice, not set it twice.
@@ -43,6 +47,9 @@ export function useFavorites(): Favorites {
         if (request === latestRef.current) show(new Set(list))
       })
       .catch(() => undefined)
+      // Even after a failed read: the sections must not wait forever, and
+      // main answers a later star with what it really has.
+      .finally(() => setLoaded(true))
   }, [show])
 
   useEffect(() => {
@@ -79,5 +86,5 @@ export function useFavorites(): Favorites {
     [resync, show]
   )
 
-  return { keys, toggle, problem }
+  return { keys, loaded, toggle, problem }
 }

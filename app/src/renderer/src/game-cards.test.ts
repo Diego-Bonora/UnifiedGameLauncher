@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { EpicInstalledGame } from '@shared/ipc/epic-channels'
 import type { ManualGameView } from '@shared/ipc/manual-channels'
 import type { SteamInstalledGame, SteamOwnedGame } from '@shared/ipc/steam-channels'
-import { buildViewSections, focusAfterChange, viewHasLibrary, type LibraryData } from './game-cards'
+import {
+  buildViewSections,
+  focusAfterChange,
+  sectionItems,
+  viewHasLibrary,
+  type LibraryData,
+  type SectionItem
+} from './game-cards'
 
 const installed = (
   appId: string,
@@ -272,5 +279,58 @@ describe('focusAfterChange', () => {
   it('never points at a Library section the view does not have', () => {
     const epicOnly = buildViewSections('epic', data)
     expect(focusAfterChange({ key: 'steam:570', section: 'installed' }, epicOnly)).toBe('installed')
+  })
+})
+
+describe('sectionItems: "★ Favorites" / "All" sub-groups', () => {
+  // A readable picture of what a section shows.
+  const shape = (items: SectionItem[]): string[] =>
+    items.map((item) => (item.kind === 'heading' ? `# ${item.group}` : item.card.title))
+  const sections = (favorites: string[]): ReturnType<typeof buildViewSections> =>
+    buildViewSections('all', { ...data, favorites: new Set(favorites) })
+
+  it('has no sub-headings when nothing in the section is starred', () => {
+    const { installed } = sections(['steam:570'])
+    expect(shape(sectionItems(installed, new Set(['steam:570'])))).toEqual(titles(installed))
+  })
+
+  it('puts starred games under "★ Favorites", by title, above the rest under "All"', () => {
+    const favorites = ['epic:Bloons', 'steam:999']
+    const { installed } = sections(favorites)
+    expect(shape(sectionItems(installed, new Set(favorites)))).toEqual([
+      '# favorites',
+      'Bloons TD 6',
+      'Family Shared Game',
+      '# all',
+      'Rocket League®',
+      'Team Fortress 2'
+    ])
+  })
+
+  it('shows only "★ Favorites" when every game in the section is starred (no empty "All")', () => {
+    const favorites = ['steam:570', 'steam:10']
+    const { library } = sections(favorites)
+    expect(shape(sectionItems(library ?? [], new Set(favorites)))).toEqual([
+      '# favorites',
+      'Counter-Strike',
+      'Dota 2'
+    ])
+  })
+
+  it('follows what search left: no starred match means no sub-headings', () => {
+    const favorites = ['epic:Bloons']
+    const { installed } = sections(favorites)
+    const matches = installed.filter((card) => card.title.startsWith('Team'))
+    expect(shape(sectionItems(matches, new Set(favorites)))).toEqual(['Team Fortress 2'])
+  })
+
+  it('keeps each card the same object, so moving it between groups never rebuilds it', () => {
+    const favorites = new Set(['steam:440'])
+    const { installed } = sections([...favorites])
+    const cards = sectionItems(installed, favorites).flatMap((item) =>
+      item.kind === 'card' ? [item.card] : []
+    )
+    expect(new Set(cards)).toEqual(new Set(installed))
+    expect(cards).toHaveLength(installed.length)
   })
 })
