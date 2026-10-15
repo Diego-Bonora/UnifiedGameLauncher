@@ -22,8 +22,10 @@ import type { SteamTitleSearch } from './steam-title-search'
 export interface CoverFileInfo {
   name: string
   // Goes into the URL, so a replaced file gets a new URL and the window
-  // never shows a cached old image.
-  mtimeMs: number
+  // never shows a cached old image. null: the file is there but couldn't be
+  // looked at (antivirus still scanning it, say). The sync only needs to
+  // know it exists; urls() can't build its URL and says so.
+  mtimeMs: number | null
 }
 
 export interface ManualCoverDeps {
@@ -101,7 +103,7 @@ function urlOf(
   kind: 'poster' | 'icon',
   file: CoverFileInfo | undefined
 ): string | null {
-  if (file === undefined) return null
+  if (file === undefined || file.mtimeMs === null) return null
   return `${MANUAL_COVER_URL_PREFIX}${id}-${kind}?v=${Math.floor(file.mtimeMs)}`
 }
 
@@ -346,10 +348,28 @@ export function createManualCovers(deps: ManualCoverDeps): ManualCovers {
 
   return {
     urls: async (games) => {
-      const files = await listFiles()
+      // Not the forgiving listFiles above: a folder that exists but can't be
+      // listed must not read as "no covers", or the window would drop every
+      // card's cover (handlers turn this throw into coversReadable: false).
+      let files: CoverFileInfo[]
+      try {
+        files = await deps.listFiles()
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+        // No folder yet (first run): really no covers.
+        files = []
+      }
       const result = new Map<string, ManualCoverUrls>()
       for (const game of games) {
         if (!MANUAL_ID_PATTERN.test(game.id)) continue
+        // A game's own poster or icon that couldn't be looked at would read
+        // as "no cover": not knowing is reported as such, like an unlistable
+        // folder. Only its own files: a leftover .tmp or a removed game's
+        // locked file must not hold up every other game's covers.
+        const own = [posterFileOf(game.id, files), iconFileOf(game.id, files)]
+        if (own.some((file) => file !== undefined && file.mtimeMs === null)) {
+          throw new Error('a cover file could not be read')
+        }
         result.set(game.id, {
           posterUrl: hasValidPoster(game, files)
             ? urlOf(game.id, 'poster', posterFileOf(game.id, files))

@@ -42,7 +42,13 @@ export function pickMessage(result: ManualPickResult): ManualMessage | null {
   }
 }
 
-export type ManualAction = 'add' | 'rename' | 'args' | 'changeExe' | 'remove'
+export type ManualAction =
+  'add' | 'rename' | 'args' | 'changeExe' | 'remove' | 'coverSteam' | 'coverIcon'
+
+// The actions that have a form the user can fix a problem in.
+function hasForm(action: ManualAction): boolean {
+  return action === 'add' || action === 'rename' || action === 'args'
+}
 
 // What the user sees after a change. `stayOpen`: the form stays open with the
 // message in it (the user can fix it and save again); otherwise the form (if
@@ -58,7 +64,11 @@ export function changeSucceeded(action: ManualAction, title: string): ChangeOutc
     rename: `Renamed to ${title}.`,
     args: `Saved the launch arguments for ${title}.`,
     changeExe: `Updated the .exe for ${title}.`,
-    remove: `Removed ${title} from your library. Its files on your PC weren't touched.`
+    remove: `Removed ${title} from your library. Its files on your PC weren't touched.`,
+    // Says what happens when Steam has no match, since the card may not
+    // change at all then.
+    coverSteam: `${title} now uses its Steam cover when Steam has a game with exactly that title. Otherwise it shows the exe icon.`,
+    coverIcon: `${title} now shows its exe icon.`
   }[action]
   return { message: { text, tone: 'info' }, stayOpen: false }
 }
@@ -78,7 +88,7 @@ export function changeFailed(
       // and choose Save in the confirmation window.
       return danger(
         "The launch arguments weren't saved. Choose Save in the confirmation window, or clear them.",
-        true
+        hasForm(action)
       )
     case 'cancelled':
       return { message: null, stayOpen: false }
@@ -99,11 +109,11 @@ export function changeFailed(
     case 'unreadable':
       return danger(UNREADABLE)
     case 'busy':
-      return danger(BUSY_MESSAGE, action === 'add' || action === 'rename' || action === 'args')
+      return danger(BUSY_MESSAGE, hasForm(action))
     case 'cannotSave':
-      return danger("Couldn't save your manual games. Try again.", action !== 'remove')
+      return danger("Couldn't save your manual games. Try again.", hasForm(action))
     case 'failed':
-      return danger('Something went wrong. Try again.', action !== 'remove')
+      return danger('Something went wrong. Try again.', hasForm(action))
   }
 }
 

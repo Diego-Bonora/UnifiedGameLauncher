@@ -19,6 +19,9 @@ export interface GameCard {
   id: string
   title: string
   coverUrl: string | null
+  // Shown in the middle of the title placeholder when there is no cover (or
+  // it fails to load). Only manual games have one: their exe's icon.
+  iconUrl: string | null
 }
 
 export interface ViewSections {
@@ -44,8 +47,14 @@ export function cardKey(store: StoreId, id: string): string {
   return gameKey(store, id)
 }
 
-function card(store: StoreId, id: string, title: string, coverUrl: string | null): GameCard {
-  return { key: cardKey(store, id), store, id, title, coverUrl }
+function card(
+  store: StoreId,
+  id: string,
+  title: string,
+  coverUrl: string | null,
+  iconUrl: string | null = null
+): GameCard {
+  return { key: cardKey(store, id), store, id, title, coverUrl, iconUrl }
 }
 
 // One collator for every sort: localeCompare with options builds a new one
@@ -96,9 +105,13 @@ export function buildViewSections(view: LibraryView, data: LibraryData): ViewSec
   }
 
   if (inView(view, 'manual')) {
-    // No covers yet: Step 4 (docs/features/library-tools.md) adds them.
+    // The user's choice decides (docs/features/library-tools.md, "Manual
+    // game covers"): Exe icon never shows the poster, even a saved one (it is
+    // kept so switching back is instant). Steam cover falls back to the icon
+    // on the placeholder until a poster is found, and when one fails to load.
     for (const game of data.manualGames) {
-      installed.push(card('manual', game.id, game.title, null))
+      const coverUrl = game.coverSource === 'steam' ? game.posterUrl : null
+      installed.push(card('manual', game.id, game.title, coverUrl, game.iconUrl))
     }
   }
 

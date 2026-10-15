@@ -175,6 +175,23 @@ export function useManualActions(manual: ManualGames, fallbackFocus: () => void)
     [manual, run]
   )
 
+  // Steam cover or Exe icon. No dialog: the menu closes and focus goes back
+  // to ⋯ at once (the card doesn't move, a cover change never re-sorts).
+  const setCover = useCallback(
+    (action: 'coverSteam' | 'coverIcon', game: ManualGameView, opener: HTMLElement | null) => {
+      opener?.focus()
+      const source = action === 'coverSteam' ? 'steam' : 'icon'
+      // Choosing what is already on: nothing to save, nothing to say.
+      if (game.coverSource === source) return
+      setMessage(null)
+      void run(async () => {
+        const result = await manual.change(() => window.api.manual.setCoverSource(game.id, source))
+        setMessage(outcomeOf(action, game.title, result).message)
+      })
+    },
+    [manual, run]
+  )
+
   const fromMenu = useCallback(
     (action: ManualMenuAction, game: ManualGameView, opener: HTMLElement | null) => {
       if (busyRef.current) {
@@ -185,6 +202,10 @@ export function useManualActions(manual: ManualGames, fallbackFocus: () => void)
       switch (action) {
         case 'changeExe':
           changeExe(game, opener)
+          return
+        case 'coverSteam':
+        case 'coverIcon':
+          setCover(action, game, opener)
           return
         case 'remove':
           setMessage(null)
@@ -206,7 +227,7 @@ export function useManualActions(manual: ManualGames, fallbackFocus: () => void)
           return
       }
     },
-    [changeExe]
+    [changeExe, setCover]
   )
 
   const save = useCallback(

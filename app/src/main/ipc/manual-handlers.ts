@@ -59,7 +59,7 @@ export interface ManualHandlers<Owner> {
   launch: (rawRequest: unknown) => Promise<ManualLaunchResult>
 }
 
-const UNREADABLE: ManualGamesList = { readable: false, games: [] }
+const UNREADABLE: ManualGamesList = { readable: false, coversReadable: true, games: [] }
 
 // Only a caller bug gets here (the preload builds the payloads), so it throws
 // rather than returning a message for the user.
@@ -79,14 +79,18 @@ export function createManualHandlers<Owner>(deps: ManualHandlerDeps<Owner>): Man
   async function toList(games: SavedManualGame[] | null): Promise<ManualGamesList> {
     if (games === null) return UNREADABLE
     let urls = new Map<string, { posterUrl: string | null; iconUrl: string | null }>()
+    let coversReadable = true
     try {
       urls = await deps.covers.urls(games)
     } catch (err) {
-      // Covers are decoration: the list still shows, with placeholders.
+      // Covers are decoration: the list still shows. The window keeps the
+      // covers it already shows rather than blanking them.
+      coversReadable = false
       console.warn('[manual] could not look up saved covers:', err)
     }
     return {
       readable: true,
+      coversReadable,
       games: games.map((game) => ({
         id: game.id,
         title: game.title,

@@ -10,7 +10,15 @@ import {
 } from './manual-messages'
 
 const RAW = /error|invoking|exception|ENOENT|undefined|null/i
-const ACTIONS: ManualAction[] = ['add', 'rename', 'args', 'changeExe', 'remove']
+const ACTIONS: ManualAction[] = [
+  'add',
+  'rename',
+  'args',
+  'changeExe',
+  'remove',
+  'coverSteam',
+  'coverIcon'
+]
 const FAILURES: (ManualChangeFailure | 'failed')[] = [
   'notConfirmed',
   'cancelled',
@@ -62,6 +70,18 @@ describe('change messages', () => {
     expect(changeFailed('rename', 'cannotSave', 'Doom').stayOpen).toBe(true)
     expect(changeFailed('add', 'noPick', 'Doom').stayOpen).toBe(false)
     expect(changeFailed('remove', 'cannotSave', 'Doom').stayOpen).toBe(false)
+  })
+
+  it('never keeps a form open for actions that have none', () => {
+    for (const action of ['changeExe', 'remove', 'coverSteam', 'coverIcon'] as const) {
+      for (const reason of FAILURES) {
+        expect(changeFailed(action, reason, 'Doom').stayOpen).toBe(false)
+      }
+    }
+  })
+
+  it('says what a Steam cover choice does when Steam has no match', () => {
+    expect(changeSucceeded('coverSteam', 'Doom').message?.text).toMatch(/exe icon/)
   })
 
   it('stays quiet when the user closed the file picker', () => {

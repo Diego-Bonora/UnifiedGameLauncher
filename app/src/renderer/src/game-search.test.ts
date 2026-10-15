@@ -14,7 +14,8 @@ const card = (store: 'steam' | 'epic', id: string, title: string): GameCard => (
   store,
   id,
   title,
-  coverUrl: null
+  coverUrl: null,
+  iconUrl: null
 })
 
 const sections: ViewSections = {

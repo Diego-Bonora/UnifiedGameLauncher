@@ -185,12 +185,11 @@ function LibraryScreen({
     heading?.focus()
   })
 
-  // Per store, so a new store can't silently borrow another's token. Manual
-  // games have no covers until Step 4.
+  // Per store, so a new store can't silently borrow another's token.
   const coverRetryTokens: Record<GameCard['store'], number | undefined> = {
     steam: steam.coverRetryToken,
     epic: epic.coverRetryToken,
-    manual: undefined
+    manual: manual.coverRetryToken
   }
 
   // Adding and editing are off while the saved list can't be read (spec), so
@@ -202,6 +201,7 @@ function LibraryScreen({
     return (
       <ManualGameMenu
         gameTitle={game.title}
+        coverSource={game.coverSource}
         disabled={manualLocked}
         onSelect={(action, opener) => manualActions.fromMenu(action, game, opener)}
       />

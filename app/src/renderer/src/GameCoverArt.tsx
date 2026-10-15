@@ -7,6 +7,9 @@ interface GameCoverArtProps {
   // cover art isn't available yet, where the title is the only way to tell
   // them apart. Without it the placeholder stays a plain block.
   placeholderLabel?: string
+  // Shown above the label on the placeholder: a manual game's exe icon, so
+  // the card is recognisable without a poster. Ignored without a label.
+  placeholderIconUrl?: string | null
   // A failure only counts for the token it happened under, so a cover whose
   // URL never changes can still recover from one failed load. Epic's token
   // changes on every list read, Steam's whenever new covers are saved.
@@ -19,6 +22,7 @@ interface GameCoverArtProps {
 function GameCoverArt({
   coverUrl,
   placeholderLabel,
+  placeholderIconUrl = null,
   retryToken
 }: GameCoverArtProps): React.JSX.Element {
   // The URL that failed, not just "something failed": when the cover later
@@ -27,13 +31,36 @@ function GameCoverArt({
   // new retry token.
   const [failed, setFailed] = useState<{ url: string; token: number | undefined } | null>(null)
   const hasFailed = failed !== null && failed.url === coverUrl && failed.token === retryToken
+  // The icon fails on its own: a broken icon just leaves the title.
+  const [iconFailed, setIconFailed] = useState<{
+    url: string
+    token: number | undefined
+  } | null>(null)
+  const showIcon =
+    placeholderIconUrl !== null &&
+    !(
+      iconFailed !== null &&
+      iconFailed.url === placeholderIconUrl &&
+      iconFailed.token === retryToken
+    )
 
   if (coverUrl === null || hasFailed) {
     if (placeholderLabel === undefined) {
       return <div className="aspect-[2/3] w-full rounded-card bg-surface-2" />
     }
     return (
-      <div className="flex aspect-[2/3] w-full items-center justify-center rounded-card bg-surface-2 p-2 text-center ring-1 ring-border transition-transform duration-150 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-accent group-focus-visible:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-accent">
+      <div className="flex aspect-[2/3] w-full flex-col items-center justify-center gap-1 rounded-card bg-surface-2 p-2 text-center ring-1 ring-border transition-transform duration-150 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-accent group-focus-visible:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-accent">
+        {showIcon && (
+          // 32 px (h-4 with this project's 8 px unit): the size main saves
+          // icons at, so they aren't scaled up blurry. Decorative: the
+          // card's button label already names the game.
+          <img
+            src={placeholderIconUrl}
+            alt=""
+            className="h-4 w-4 shrink-0 object-contain"
+            onError={() => setIconFailed({ url: placeholderIconUrl, token: retryToken })}
+          />
+        )}
         <span className="line-clamp-4 font-display text-sm font-semibold text-muted">
           {placeholderLabel}
         </span>

@@ -54,7 +54,17 @@ const api: RendererApi = {
     setArgs: (id, args) => ipcRenderer.invoke(MANUAL_CHANNELS.setArgs, { id, args }),
     changeExe: (id) => ipcRenderer.invoke(MANUAL_CHANNELS.changeExe, { id }),
     remove: (id) => ipcRenderer.invoke(MANUAL_CHANNELS.remove, { id }),
-    launch: (id) => ipcRenderer.invoke(MANUAL_CHANNELS.launch, { id })
+    launch: (id) => ipcRenderer.invoke(MANUAL_CHANNELS.launch, { id }),
+    setCoverSource: (id, source) =>
+      ipcRenderer.invoke(MANUAL_CHANNELS.setCoverSource, { id, source }),
+    onCoversChanged: (callback) => {
+      // Same as Steam's: the event object is not passed on.
+      const listener = (): void => callback()
+      ipcRenderer.on(MANUAL_CHANNELS.coversChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(MANUAL_CHANNELS.coversChanged, listener)
+      }
+    }
   },
   favorites: {
     list: () => ipcRenderer.invoke(FAVORITES_CHANNELS.list),

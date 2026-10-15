@@ -209,6 +209,56 @@ describe('manual covers: icons and housekeeping', () => {
     expect(s.files.has(`${GONE}-icon.png`)).toBe(true)
   })
 
+  it('urls says "no covers" when the folder does not exist yet', async () => {
+    const s = setup([game(A, 'Doom')], undefined, {
+      listFiles: async () => {
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+      }
+    })
+    const urls = await s.covers.urls(s.saved())
+    expect(urls.get(A)).toEqual({ posterUrl: null, iconUrl: null })
+  })
+
+  it('a locked cover file: urls says it cannot read covers, the sync still sees the file', async () => {
+    const readIcon = vi.fn(async () => PNG)
+    const s = setup([game(A, 'Doom', { coverSource: 'icon' })], undefined, { readIcon })
+    await sync(s)
+    expect(readIcon).toHaveBeenCalledTimes(1)
+    // A new session, with the saved icon still being scanned by antivirus.
+    const covers = createManualCovers({
+      ...s.deps,
+      listFiles: async () => [...s.files.keys()].map((name) => ({ name, mtimeMs: null }))
+    })
+    await expect(covers.urls(s.saved())).rejects.toThrow()
+    covers.requestSync()
+    await covers.whenIdle()
+    // Not re-read or rewritten: the file is there, only its time is unknown.
+    expect(readIcon).toHaveBeenCalledTimes(1)
+  })
+
+  it("a locked file that isn't one of the games' covers doesn't hold up their covers", async () => {
+    const s = setup([game(A, 'Doom', { coverSource: 'icon' })])
+    await sync(s)
+    const covers = createManualCovers({
+      ...s.deps,
+      listFiles: async () => [
+        ...[...s.files.keys()].map((name) => ({ name, mtimeMs: 1 })),
+        { name: `${A}-poster.png.tmp`, mtimeMs: null },
+        { name: `${GONE}-icon.png`, mtimeMs: null }
+      ]
+    })
+    expect((await covers.urls(s.saved())).get(A)?.iconUrl).toMatch(/-icon\?v=1$/)
+  })
+
+  it("urls fails when the folder exists but can't be listed, rather than claiming no covers", async () => {
+    const s = setup([game(A, 'Doom')], undefined, {
+      listFiles: async () => {
+        throw Object.assign(new Error('locked'), { code: 'EBUSY' })
+      }
+    })
+    await expect(s.covers.urls(s.saved())).rejects.toThrow('locked')
+  })
+
   it('forget deletes both files; dropPoster only the poster', async () => {
     const s = setup([game(A, 'Doom'), game(B, 'Quake')])
     await sync(s)

@@ -111,6 +111,7 @@ function GameTile({
           <GameCoverArt
             coverUrl={card.coverUrl}
             placeholderLabel={card.title}
+            placeholderIconUrl={card.iconUrl}
             retryToken={coverRetryToken}
           />
           {showBadge && (

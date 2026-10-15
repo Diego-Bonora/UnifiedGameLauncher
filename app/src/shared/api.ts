@@ -8,6 +8,7 @@ import type {
 import type { FavoriteSetResult } from './ipc/favorites-channels'
 import type {
   ManualChangeResult,
+  ManualCoverSource,
   ManualGamesList,
   ManualLaunchResult,
   ManualPickResult
@@ -80,6 +81,12 @@ export interface RendererApi {
     changeExe: (id: string) => Promise<ManualChangeResult>
     remove: (id: string) => Promise<ManualChangeResult>
     launch: (id: string) => Promise<ManualLaunchResult>
+    // Steam cover or Exe icon; main looks for the poster in the background
+    // and says so through onCoversChanged.
+    setCoverSource: (id: string, source: ManualCoverSource) => Promise<ManualChangeResult>
+    // A poster or icon was saved or removed: read the list again. Returns a
+    // function that stops listening.
+    onCoversChanged: (callback: () => void) => () => void
   }
   // Starred games, as `<store>:<id>` keys (docs/features/library-tools.md).
   favorites: {

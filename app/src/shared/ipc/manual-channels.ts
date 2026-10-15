@@ -77,8 +77,14 @@ export interface ManualGameView {
 // `readable: false` means manual-games.json exists but couldn't be read (for
 // example locked by OneDrive): the list is then empty and nothing may be
 // changed until a read works, so a bad read can't wipe the saved games.
+//
+// `coversReadable: false` means the covers folder exists but couldn't be
+// listed (locked by antivirus, say), so every posterUrl and iconUrl is null
+// for that reason alone: the window keeps the covers it already shows.
+// Otherwise a null URL is the truth (no cover, or one main removed).
 export interface ManualGamesList {
   readable: boolean
+  coversReadable: boolean
   games: ManualGameView[]
 }
 

@@ -156,6 +156,40 @@ describe('buildViewSections: manual games', () => {
     expect(card?.store).toBe('manual')
   })
 
+  describe('covers', () => {
+    const POSTER = 'app-cover://manual/0f8fad5b-poster?v=1'
+    const ICON = 'app-cover://manual/0f8fad5b-icon?v=2'
+    const coverOf = (game: ManualGameView): { coverUrl: string | null; iconUrl: string | null } => {
+      const card = buildViewSections('manual', { ...data, manualGames: [game] }).installed[0]
+      return { coverUrl: card?.coverUrl ?? null, iconUrl: card?.iconUrl ?? null }
+    }
+    const doom = manual('0f8fad5b-d9cb-469f-a165-70867728950e', 'Doom (1993)')
+
+    it('shows the Steam poster when Steam cover is chosen and one is saved', () => {
+      expect(coverOf({ ...doom, posterUrl: POSTER, iconUrl: ICON })).toEqual({
+        coverUrl: POSTER,
+        iconUrl: ICON
+      })
+    })
+
+    it('falls back to the icon on the placeholder while Steam has no poster', () => {
+      expect(coverOf({ ...doom, iconUrl: ICON })).toEqual({ coverUrl: null, iconUrl: ICON })
+    })
+
+    it('never shows a saved poster when Exe icon is chosen', () => {
+      expect(coverOf({ ...doom, coverSource: 'icon', posterUrl: POSTER, iconUrl: ICON })).toEqual({
+        coverUrl: null,
+        iconUrl: ICON
+      })
+    })
+
+    it('gives other stores no icon', () => {
+      const all = buildViewSections('all', data)
+      expect(all.installed.every((card) => card.iconUrl === null)).toBe(true)
+      expect((all.library ?? []).every((card) => card.iconUrl === null)).toBe(true)
+    })
+  })
+
   it('does not add a Library section to All games for them', () => {
     expect(titles(buildViewSections('all', withManual).library)).toEqual([
       'Counter-Strike',

@@ -98,6 +98,7 @@ describe('manual handlers: list', () => {
     const list = await handlers.list()
     expect(list).toEqual({
       readable: true,
+      coversReadable: true,
       games: [
         {
           id: ID_A,
@@ -116,8 +117,29 @@ describe('manual handlers: list', () => {
     const { handlers, fileDeps } = setup([saved(ID_A, 'Doom', DOOM)])
     fileDeps.unreadable = true
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    expect(await handlers.list()).toEqual({ readable: false, games: [] })
+    expect(await handlers.list()).toEqual({ readable: false, coversReadable: true, games: [] })
     warn.mockRestore()
+  })
+
+  it("says when the covers couldn't be listed, so the window keeps the ones it shows", async () => {
+    const { handlers } = setup([saved(ID_A, 'Doom', DOOM)], {
+      covers: {
+        urls: async () => {
+          throw Object.assign(new Error('locked'), { code: 'EBUSY' })
+        },
+        requestSync: vi.fn(),
+        retry: vi.fn(),
+        forget: vi.fn(async () => undefined),
+        dropPoster: vi.fn(async () => undefined),
+        whenIdle: async () => undefined
+      }
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const list = await handlers.list()
+    warn.mockRestore()
+    expect(list.readable).toBe(true)
+    expect(list.coversReadable).toBe(false)
+    expect(list.games[0]).toMatchObject({ id: ID_A, posterUrl: null, iconUrl: null })
   })
 })
 

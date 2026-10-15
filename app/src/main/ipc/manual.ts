@@ -91,8 +91,13 @@ function createRealManualCovers(file: ManualGamesFile): ManualCovers {
       for (const name of names) {
         try {
           files.push({ name, mtimeMs: (await stat(join(dir, name))).mtimeMs })
-        } catch {
-          // Gone between the listing and the stat.
+        } catch (err) {
+          // Gone between the listing and the stat: really not there.
+          if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue
+          // Still there but locked (antivirus scanning a new file): listed
+          // without a time, so the sync still sees it and the covers lookup
+          // reports "can't read covers" instead of "no cover".
+          files.push({ name, mtimeMs: null })
         }
       }
       return files
