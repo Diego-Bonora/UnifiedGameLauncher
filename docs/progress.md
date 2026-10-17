@@ -3,15 +3,37 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1 (Disconnect, fixes) and 2 (About, privacy, licenses) done (`0517ddc`, 770 tests). The Milestone 6 Windows test is half done, a separate task.
+Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1 (Disconnect, fixes), 2 (About, privacy, licenses) and 3 (app icon) done (776 tests). The Milestone 6 Windows test is half done, a separate task.
 
 ## In Progress
-Milestone 7, one step at a time: 3) app icon, 4) auto-updates, 5) release workflow, 6) Windows test of the release path.
+Milestone 7, one step at a time: 4) auto-updates, 5) release workflow, 6) Windows test of the release path.
 
 ## Next Up
-Milestone 7 Step 3: the app icon (spec section 6): `build/icon.svg` drawn from basic shapes, a script that renders PNG + ICO in Electron, screenshots at 16/32/256 px before committing.
+Milestone 7 Step 4: auto-updates (spec section 4), plus the Step 2 open items listed in its entry below.
 
 ---
+
+## 2026-10-17 (Milestone 7 Step 3: app icon)
+**Built (776 tests, 770 before):**
+- `app/build/icon.svg`: a fan of three cover cards (violet shades on a `#14141C` tile with a `#2A2A3A` edge), plain rectangles only. The side cards are shorter so their tilted bottoms end behind the front card.
+- `app/scripts/render-icon.mjs` (`npm run icon`, run by Electron): a hidden sandboxed window draws the SVG on a canvas at each size (16–256, never downscaled) and writes `build/icon.png`, `resources/icon.png` (512) and `build/icon.ico`. It refuses unexpected arguments and builds everything before the first write. `-- --preview <dir> [file.svg ...]` writes a sheet (every size on dark/light, 16 and 32 px enlarged).
+- `app/scripts/ico.mjs` (+ `ico.d.mts`, `ico.test.ts`): packs PNG entries into an `.ico` (256 written as 0).
+- `.gitignore`: `!app/build/`. The root template's `build/` had kept electron-builder's buildResources folder out of git, so CI never had `build/icon.ico`.
+- `docs/brand.md` Logo line.
+
+**Decisions (user's calls):** the fan (C) over a stack (B, sharpest at 16 px) and a shelf (A, looked like a bar chart), in its refined form (no notches under the front card). 16 px is soft on the tilted cards; accepted.
+
+**Fixed by review (2 rounds, last clean):** stray arguments silently overwrote the committed icons; PNGs were written before the ICO was built; untested IHDR branch.
+
+**Verified (macOS):**
+- electron-builder 26 picks `build/icon.ico` (its `iconConverter.js`; no warning).
+- A `--win --dir` package carries all 7 entries byte for byte in `UnifiedGameLauncher.exe`; `app.asar` holds neither `build/` nor `scripts/`.
+- Re-rendering on this Mac is byte-identical.
+
+**Not verified:** the icon in Windows (taskbar, Explorer, installer, shortcut), which is Step 6.
+
+**Next:** Step 4 (auto-updates).
+**Blocked by:** nothing. Open: `resources/icon.png` ships in `app.asar` unused (template leftover, spec asks for it); nothing checks the committed icons against the SVG (a Chromium on another OS may anti-alias differently); the first CI installer with the new icon is still to be built.
 
 ## 2026-10-17 (Milestone 7 Step 2: About, privacy policy, licenses)
 **Built (`0517ddc`, 770 tests, 738 before):**
@@ -56,12 +78,3 @@ Milestone 7 Step 3: the app icon (spec section 6): `build/icon.svg` drawn from b
 
 **Next:** Step 2 (About, privacy, licenses).
 **Blocked by:** nothing. Open: the Milestone 6 Windows test items; the spec's open items (SmartScreen during an update, the single-instance lock after Restart now, the sha512 / missing `latest.yml` behaviour, to be read in step 4); older open items in progress-archive.md.
-
-## 2026-10-15 (Windows test of Milestone 6, Xbox v2 spec, Favorites sub-groups)
-**Windows test (user, installer run 38766994554):** works: search, Add game (Overwatch, path with spaces), launch, Steam cover by exact title, Rename, Change .exe, Exe icon switch. Found: Minecraft Launcher in `C:\XboxGames\…\Content` can't be picked (Windows permission error in the file dialog itself, not the app).
-**Xbox (v2, docs only, `8881575`):** `docs/features/xbox-store.md` (draft) + real samples in `docs/sources/xbox-samples/`. Verified on the user's PC: `.GamingRoot` format (`RGBX`, count, UTF-16LE names), `Content\MicrosoftGame.config` readable (title, package name, StoreId), app ID via `Get-StartApps`, `explorer.exe "shell:AppsFolder\<app id>"` launches, displaycatalog Poster 1440×2160 without a key. Spec review settled: card id = package name, launch only if Windows' package record matches the folder, `explorer.exe` by full path, no `shell:` on the allow-list, sender check, per-drive failures; 13 open items each with one check.
-**Built (`0d05510` spec, `755ce03` code, 709 tests):** Favorites sub-groups (user's call): a section showing a starred game splits into "★ Favorites" above "All" (h3; drawn star `aria-hidden`; heading rows `role="none"` so the list counts only games, user's call (a)). `game-cards.ts` `sectionItems` (one keyed list, cards moved not rebuilt), `LibraryScreen.tsx`, `GameTile.tsx` (`StarIcon` exported), `use-favorites.ts` (`loaded`; sections wait for it, no unsplit-then-split jump).
-**Fixed by review:** spec review (11 findings, e.g. focus lost when a card changes group, rebuild of every card on the first star, startup jump) folded into the spec; code review clean.
-**Verified (headless dev app + CDP):** star/unstar by keyboard keeps focus and recreates no card; last star removes the headings; search without a starred match shows none. Not verified on Windows yet.
-**Next:** the rest of the Windows test.
-**Blocked by:** nothing. Open: Xbox open items in its spec.

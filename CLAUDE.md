@@ -81,3 +81,4 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 - [2026-10-15] Six PowerShell checks pasted as one block hid half their output. One command per block, ending in `| Out-String`; avoid wildcards the user must copy.
 - [2026-10-17] Trusted `npm ls` and a spec's install path; the real `app.asar` and electron-builder's code differed. List a packaged `app.asar` to know what ships; read the tool's code before naming its paths.
 - [2026-10-17] A disconnect guard counter was taken after the awaits that read the connection, so a read in between still saved data. Take guards before the first state read, re-check after each await, loop on a shared in-flight promise.
+- [2026-10-17] The root `.gitignore`'s template `build/` line hid `app/build/` (electron-builder's icon folder), so CI never had the icon. After adding a file the build needs, check `git status` lists it.

@@ -35,3 +35,12 @@
 **Verified (headless dev app + CDP, seeded games):** each cover kind; menu by keyboard; switching both ways; a re-read icon reaches the window with no loop; an unlistable folder keeps shown covers. Not verified: a real Steam poster (proxy blocks Steam); the overtaken-change fix live (needs clicking main's native dialog; no xdotool here).
 **Next:** the Windows test of Milestone 6.
 **Blocked by:** nothing. Open: the stale icon after Change .exe and the sync's unlistable-folder read were both fixed on 2026-10-17.
+
+## 2026-10-15 (Windows test of Milestone 6, Xbox v2 spec, Favorites sub-groups)
+**Windows test (user, installer run 38766994554):** works: search, Add game (Overwatch, path with spaces), launch, Steam cover by exact title, Rename, Change .exe, Exe icon switch. Found: Minecraft Launcher in `C:\XboxGames\…\Content` can't be picked (Windows permission error in the file dialog itself, not the app).
+**Xbox (v2, docs only, `8881575`):** `docs/features/xbox-store.md` (draft) + real samples in `docs/sources/xbox-samples/`. Verified on the user's PC: `.GamingRoot` format (`RGBX`, count, UTF-16LE names), `Content\MicrosoftGame.config` readable (title, package name, StoreId), app ID via `Get-StartApps`, `explorer.exe "shell:AppsFolder\<app id>"` launches, displaycatalog Poster 1440×2160 without a key. Spec review settled: card id = package name, launch only if Windows' package record matches the folder, `explorer.exe` by full path, no `shell:` on the allow-list, sender check, per-drive failures; 13 open items each with one check.
+**Built (`0d05510` spec, `755ce03` code, 709 tests):** Favorites sub-groups (user's call): a section showing a starred game splits into "★ Favorites" above "All" (h3; drawn star `aria-hidden`; heading rows `role="none"` so the list counts only games, user's call (a)). `game-cards.ts` `sectionItems` (one keyed list, cards moved not rebuilt), `LibraryScreen.tsx`, `GameTile.tsx` (`StarIcon` exported), `use-favorites.ts` (`loaded`; sections wait for it, no unsplit-then-split jump).
+**Fixed by review:** spec review (11 findings, e.g. focus lost when a card changes group, rebuild of every card on the first star, startup jump) folded into the spec; code review clean.
+**Verified (headless dev app + CDP):** star/unstar by keyboard keeps focus and recreates no card; last star removes the headings; search without a starred match shows none. Not verified on Windows yet.
+**Next:** the rest of the Windows test.
+**Blocked by:** nothing. Open: Xbox open items in its spec.

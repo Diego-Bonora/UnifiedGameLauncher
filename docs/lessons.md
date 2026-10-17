@@ -10,6 +10,10 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-10-17 — A template `.gitignore` kept electron-builder's `build/` folder out of git
+**What happened:** While adding the new icon, `git status` didn't list `app/build/`. The root `.gitignore` came from a generic template, and its `build/` line (meant for build output) also matched electron-builder's buildResources folder. `app/build/icon.ico` and `icon.png` had only ever existed on the Mac, so a fresh clone and every CI installer lacked them, and electron-builder fell back to its default icon without failing. Nobody noticed because local builds had the files.
+**Rule going forward:** After adding a file the build needs, check `git status` lists it (`git check-ignore -v <file>` says which rule hides it). Treat generic ignore lines (`build/`, `dist/`, `out/`) as suspects in any folder whose name a tool uses for inputs. Un-ignore only the exact folder (`!app/build/`).
+
 ## 2026-10-17 — What ships is not what `npm ls` says, nor what a spec guesses about the installer
 **What happened:** For the licenses list, `npm ls --omit=dev` listed Electron's download helpers (they come in as a peer dependency), but a packaged `app.asar` held only 5 packages, and React, react-dom and scheduler ship inside the renderer bundle, not as packages. The same `app.asar` listing showed the installer had been packing `scripts/` and `.nvmrc` for months. Separately, the release spec said the program installs to `%LOCALAPPDATA%\Programs\UnifiedGameLauncher`; electron-builder's code (`getWindowsInstallationDirName`) uses the package name for a per-user one-click install, so the privacy policy would have named a folder that doesn't exist.
 **Rule going forward:** To know what ships, package once (`npx electron-builder --dir`, output in the scratchpad) and list it (`npx @electron/asar list …/app.asar`); repeat after changing `files`/`extraResources`. Before user-facing text names a path or file a tool creates, read the tool's own code for it (or look on a real install) rather than trusting the spec.
