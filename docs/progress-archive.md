@@ -23,3 +23,15 @@
 **Verified (Linux container, headless Electron + CDP):** search, stars, manual launch with args, menu/dialog keyboard paths, icons. Steam is blocked by this container's proxy.
 **Next:** Step 4b, then the Windows test (args dialog, path with spaces, .lnk refused, admin-only and console exes).
 **Blocked by:** nothing. Open: admin-only exe error code (EACCES expected); console exes have no window; icons are 32 px; older items below.
+
+## 2026-10-15 (Milestone 6 Step 4b: manual covers on the cards; merged to main)
+**Found at /start:** Milestone 6 lived only on `claude/epic-clarke-xvw1eb`, not `main`; fast-forwarded to it (see lessons.md).
+**Built (`588ad7f`, 704 tests, 687 before):**
+- Renderer: `game-cards.ts` (`iconUrl`; poster only with Steam cover), `GameCoverArt.tsx` (32 px exe icon on the placeholder), `ManualGameMenu.tsx` ("Cover" `menuitemradio` group), `use-manual-actions.ts` (`setCover`), `manual-messages.ts`, `use-manual-games.ts` (`onCoversChanged`), new `manual-view.ts`.
+- Preload/shared: `setCoverSource`, `onCoversChanged`, `ManualGamesList.coversReadable`.
+- Main: `covers.urls()` throws when the folder can't be listed (ENOENT = no covers) or a game's own cover file can't be `stat`ed (`mtimeMs: null`; the sync still sees it), giving `coversReadable: false`.
+**Decisions:** the window keeps shown covers only when main says `coversReadable: false`; otherwise main's nulls are the truth (a poster main drops on purpose must disappear), and a rename still drops the poster. A manual change's answer is shown unless a newer change started (`latestChangeRef`), and the list is read again if a read overtook it. Merged to `main` by fast-forward (user's call).
+**Fixed by review (3 rounds):** a covers reload could hide a saved change; the renderer guessed why a URL was null; one locked unrelated file stopped all cover updates. Last fix not re-reviewed (user's call).
+**Verified (headless dev app + CDP, seeded games):** each cover kind; menu by keyboard; switching both ways; a re-read icon reaches the window with no loop; an unlistable folder keeps shown covers. Not verified: a real Steam poster (proxy blocks Steam); the overtaken-change fix live (needs clicking main's native dialog; no xdotool here).
+**Next:** the Windows test of Milestone 6.
+**Blocked by:** nothing. Open: the stale icon after Change .exe and the sync's unlistable-folder read were both fixed on 2026-10-17.

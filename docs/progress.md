@@ -3,15 +3,28 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4, the library layout and Milestone 6 are on `main`. Milestone 7 (release) has a reviewed spec, `docs/features/release.md`. Its Step 1 is done (738 tests): bug fixes, Disconnect Steam, typed Steam results, and a sender check on every IPC channel. The Milestone 6 Windows test is still half done (installer run 38780888761); it is a separate task now, not part of Milestone 7.
+Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1 (Disconnect, fixes) and 2 (About, privacy, licenses) done (`0517ddc`, 770 tests). The Milestone 6 Windows test is half done, a separate task.
 
 ## In Progress
-Milestone 7, one step at a time: 2) About + privacy policy + licenses, 3) app icon, 4) auto-updates, 5) release workflow, 6) Windows test of the release path.
+Milestone 7, one step at a time: 3) app icon, 4) auto-updates, 5) release workflow, 6) Windows test of the release path.
 
 ## Next Up
-Milestone 7 Step 2: the About group in Settings, the privacy policy, `LICENSE` and the generated components list (spec sections 1–3).
+Milestone 7 Step 3: the app icon (spec section 6): `build/icon.svg` drawn from basic shapes, a script that renders PNG + ICO in Electron, screenshots at 16/32/256 px before committing.
 
 ---
+
+## 2026-10-17 (Milestone 7 Step 2: About, privacy policy, licenses)
+**Built (`0517ddc`, 770 tests, 738 before):**
+- `LICENSE` (MIT) at the repo root; `package.json` `"license": "MIT"`.
+- Licenses: `scripts/bundled-packages-plugin.ts` records what each build bundles (incl. CSS `@import`s; unknown virtual modules fail). `scripts/licenses.mjs` adds the production tree and Electron, checks an SPDX allow-list + `LICENSE_EXCEPTIONS`, copies texts to `resources\licenses`. `npm run build` fails on a stale `generated/licenses.json`; `npm run licenses` rewrites it (10 components).
+- Installer no longer packs `scripts/`, `.nvmrc` (checked in `app.asar`).
+- Main: `ipc/app.ts`, `app-handlers.ts`, `shared/ipc/app-channels.ts`: `getVersion`, `copyProjectLink` (no payload; writes `PROJECT_URL`, reads it back). `spellcheck: false`.
+- Renderer: `AboutSection.tsx` (last group in Settings), `ModalDialog` `size="long"`, `LongTextDialog.tsx`, `privacy-policy.ts` (+ test tying folder names to the package name).
+**Decisions:** the list is committed (dev works, changes show in diffs). The policy lists only today's behaviour; GitHub/updates/settings lines come with Step 4. Spec corrected: program folder `%LOCALAPPDATA%\Programs\unified-game-launcher` (package name). PROJECT_PLAN.md §12 is a pointer.
+**Fixed by review (2 rounds):** Tailwind unlisted; `--write` after `npm run dev` dropped React; no exception path; "Copied" on a silent clipboard failure; timer race; locale sort; `?commonjs-external` ids (not re-reviewed, user's call).
+**Verified (macOS dev app + CDP, StrictMode):** version; Copy link copies exactly the URL, the window's own clipboard write is refused; dialogs scroll; Esc/Close return focus; 600 px.
+**Next:** Step 3 (app icon).
+**Blocked by:** nothing. Open: Step 4 must add `lazy-val` (electron-updater, no license file) to `LICENSE_EXCEPTIONS`, the updater lines to the policy, and a test tying main's hosts to the policy; Step 5 an early CI licenses check; Step 6 confirm the program folder. Known gaps: a package's CSS importing another package, Tailwind plugins, unquoted `@import url(x)`; `spellcheck: false` not observed in the app.
 
 ## 2026-10-17 (Milestone 7 spec and Step 1)
 **Decided (spec `docs/features/release.md`, user's calls):**
@@ -51,16 +64,4 @@ Milestone 7 Step 2: the About group in Settings, the privacy policy, `LICENSE` a
 **Fixed by review:** spec review (11 findings, e.g. focus lost when a card changes group, rebuild of every card on the first star, startup jump) folded into the spec; code review clean.
 **Verified (headless dev app + CDP):** star/unstar by keyboard keeps focus and recreates no card; last star removes the headings; search without a starred match shows none. Not verified on Windows yet.
 **Next:** the rest of the Windows test.
-**Blocked by:** nothing. Open: the 2026-10-15 Step 4b items below; Xbox open items in its spec.
-
-## 2026-10-15 (Milestone 6 Step 4b: manual covers on the cards; merged to main)
-**Found at /start:** Milestone 6 lived only on `claude/epic-clarke-xvw1eb`, not `main`; fast-forwarded to it (see lessons.md).
-**Built (`588ad7f`, 704 tests, 687 before):**
-- Renderer: `game-cards.ts` (`iconUrl`; poster only with Steam cover), `GameCoverArt.tsx` (32 px exe icon on the placeholder), `ManualGameMenu.tsx` ("Cover" `menuitemradio` group), `use-manual-actions.ts` (`setCover`), `manual-messages.ts`, `use-manual-games.ts` (`onCoversChanged`), new `manual-view.ts`.
-- Preload/shared: `setCoverSource`, `onCoversChanged`, `ManualGamesList.coversReadable`.
-- Main: `covers.urls()` throws when the folder can't be listed (ENOENT = no covers) or a game's own cover file can't be `stat`ed (`mtimeMs: null`; the sync still sees it), giving `coversReadable: false`.
-**Decisions:** the window keeps shown covers only when main says `coversReadable: false`; otherwise main's nulls are the truth (a poster main drops on purpose must disappear), and a rename still drops the poster. A manual change's answer is shown unless a newer change started (`latestChangeRef`), and the list is read again if a read overtook it. Merged to `main` by fast-forward (user's call).
-**Fixed by review (3 rounds):** a covers reload could hide a saved change; the renderer guessed why a URL was null; one locked unrelated file stopped all cover updates. Last fix not re-reviewed (user's call).
-**Verified (headless dev app + CDP, seeded games):** each cover kind; menu by keyboard; switching both ways; a re-read icon reaches the window with no loop; an unlistable folder keeps shown covers. Not verified: a real Steam poster (proxy blocks Steam); the overtaken-change fix live (needs clicking main's native dialog; no xdotool here).
-**Next:** the Windows test of Milestone 6.
-**Blocked by:** nothing. Open: the stale icon after Change .exe and the sync's unlistable-folder read were both fixed on 2026-10-17.
+**Blocked by:** nothing. Open: Xbox open items in its spec.

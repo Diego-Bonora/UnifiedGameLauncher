@@ -71,7 +71,7 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 - [2026-10-03] Installed Steam cards assumed every installed game is owned; free-to-play and family-shared games aren't in `GetOwnedGames`. Check what a data source leaves out before building on it.
 - [2026-10-03] Spacing here is 8 px per Tailwind unit (`w-28` = 224 px), not 4 px. Halve stock Tailwind numbers; screenshot new layout via CDP.
 - [2026-10-03] Typed a known icon library's SVG path from memory. Draw icons from basic shapes; nothing copied.
-- [2026-10-03] `kill $P` in zsh passes all PIDs as one argument. Use `xargs kill < pidfile`.
+- [2026-10-03] `kill $P` in zsh passes all PIDs as one argument. Use `xargs kill < pidfile`; for a command in a variable, a shell function.
 - [2026-10-03] Checked new dialogs only in the production build; StrictMode in dev made them close themselves. Check new UI in the dev app too.
 - [2026-10-03] A sync that notifies → window re-reads → sync again could loop when saves fail. Try each item once per session; count only real changes.
 - [2026-10-03] Exact-text edit batches partly applied after Prettier reflowed files. Re-read after formatting; small anchored edits; grep the result.
@@ -79,4 +79,5 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 - [2026-10-15] The renderer guessed "hiccup" from a null cover URL. Have the producer say "unknown" explicitly, narrowly; trust every other answer.
 - [2026-10-15] A new background reload made "newest request wins" drop a saved change. Order changes separately; re-read when a read overtook one.
 - [2026-10-15] Six PowerShell checks pasted as one block hid half their output. One command per block, ending in `| Out-String`; avoid wildcards the user must copy.
+- [2026-10-17] Trusted `npm ls` and a spec's install path; the real `app.asar` and electron-builder's code differed. List a packaged `app.asar` to know what ships; read the tool's code before naming its paths.
 - [2026-10-17] A disconnect guard counter was taken after the awaits that read the connection, so a read in between still saved data. Take guards before the first state read, re-check after each await, loop on a shared in-flight promise.

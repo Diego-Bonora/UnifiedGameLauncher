@@ -10,6 +10,10 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-10-17 — What ships is not what `npm ls` says, nor what a spec guesses about the installer
+**What happened:** For the licenses list, `npm ls --omit=dev` listed Electron's download helpers (they come in as a peer dependency), but a packaged `app.asar` held only 5 packages, and React, react-dom and scheduler ship inside the renderer bundle, not as packages. The same `app.asar` listing showed the installer had been packing `scripts/` and `.nvmrc` for months. Separately, the release spec said the program installs to `%LOCALAPPDATA%\Programs\UnifiedGameLauncher`; electron-builder's code (`getWindowsInstallationDirName`) uses the package name for a per-user one-click install, so the privacy policy would have named a folder that doesn't exist.
+**Rule going forward:** To know what ships, package once (`npx electron-builder --dir`, output in the scratchpad) and list it (`npx @electron/asar list …/app.asar`); repeat after changing `files`/`extraResources`. Before user-facing text names a path or file a tool creates, read the tool's own code for it (or look on a real install) rather than trusting the spec.
+
 ## 2026-10-17 — A disconnect guard was taken after the await it had to cover
 **What happened:** To stop a Steam library read from saving data after Disconnect, `loadLibrary` captured a generation counter. Review found it was captured too late. The handler first awaited the running disconnect and then the connection and key read, and only then took the counter. Disconnect deletes the connection last, on purpose, so a read caught between those awaits saw "connected" with the already-bumped counter and wrote the library and covers back. The first fix also awaited `disconnecting` once, which misses a second disconnect starting during the wait. My first "read during disconnect" test passed with the wait removed, because its mock always answered "disconnected"; a mutation check caught it.
 **Rule going forward:** Read a guard counter before the first await that reads the state it protects, check it again after each await, and pass it down instead of re-reading it later. Waiting on a shared "current operation" promise must loop until that variable stops changing. Test a guard by holding each awaited dependency open in turn while the other operation runs, with mocks that change state the way the real code does, and mutation-check every guard.
@@ -56,7 +60,7 @@
 
 ## 2026-10-03 — `kill $PIDS` in zsh passed every PID as one argument
 **What happened:** Stopping the dev app with `P=$(...); kill $P` failed with "illegal pid": zsh doesn't word-split unquoted variables, so `kill` got "54840 54841 …" as a single argument and nothing was stopped.
-**Rule going forward:** Write the PIDs to a file and use `xargs kill < file`, or list them literally. Still confirm with `ps` and `curl` on the debug port afterwards.
+**Rule going forward:** Write the PIDs to a file and use `xargs kill < file`, or list them literally. The same goes for a command kept in a variable (`C="node x.mjs"; $C …` fails with "no such file"): use a shell function instead. Still confirm with `ps` and `curl` on the debug port afterwards.
 
 ## 2026-10-02 — Four review fixes each introduced a new bug in the same sync/status logic
 **What happened:** In the Epic cover work, a fix to one finding broke something nearby four times: "posters we can't use" became `unavailable`, which halted the whole run for every game; a state-file failure set `unavailable` over a `keyRejected` that then never cleared; setting `lastSynced` before the sync locked out retries after a failed startup sync; and skipping the sync with no key silently dropped the folder housekeeping the spec required. Each was caught only by the next review round, so Steps 2 and 3 needed three rounds each.
