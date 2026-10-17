@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { APP_ID, APP_NAME } from '@shared/app-info'
 import { isAllowedExternalUrl, isSameOrigin } from './security/external-url'
+import { registerAppIpc } from './ipc/app'
 import { registerEpicIpc } from './ipc/epic'
 import { registerFavoritesIpc } from './ipc/favorites'
 import { registerManualIpc } from './ipc/manual'
@@ -35,7 +36,11 @@ function createWindow(): void {
       // Set explicitly (not left to defaults) so a later edit can't weaken them silently.
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      // The fields here are keys, titles and launch arguments, where spelling
+      // suggestions are noise. Off also means Electron never downloads its
+      // dictionaries, a request the privacy policy would otherwise have to name.
+      spellcheck: false
     }
   })
 
@@ -101,6 +106,7 @@ if (!app.requestSingleInstanceLock()) {
     })
     session.defaultSession.setPermissionCheckHandler(() => false)
 
+    registerAppIpc()
     registerSteamIpc()
     registerEpicIpc()
     // The one favorites store for the app (see registerFavoritesIpc).

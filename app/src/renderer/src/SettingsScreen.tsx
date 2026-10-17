@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import AboutSection from './AboutSection'
 import DisconnectSteamDialog from './DisconnectSteamDialog'
 import EpicCoverKeyForm from './EpicCoverKeyForm'
 import type { EpicLibrary } from './use-epic-library'
@@ -194,6 +195,8 @@ function SettingsScreen({ steam, epic, focusHeading }: SettingsScreenProps): Rea
           </p>
         )}
       </section>
+
+      <AboutSection />
     </div>
   )
 }

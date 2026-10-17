@@ -3,15 +3,19 @@ import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { APP_NAME } from './src/shared/app-info'
+import { bundledPackagesPlugin } from './scripts/bundled-packages-plugin'
 
 const sharedAlias = { '@shared': resolve('src/shared') }
 
 export default defineConfig({
+  // Each build records the npm packages it bundles, for the licenses list.
   main: {
-    resolve: { alias: sharedAlias }
+    resolve: { alias: sharedAlias },
+    plugins: [bundledPackagesPlugin('main')]
   },
   preload: {
-    resolve: { alias: sharedAlias }
+    resolve: { alias: sharedAlias },
+    plugins: [bundledPackagesPlugin('preload')]
   },
   renderer: {
     resolve: {
@@ -25,6 +29,7 @@ export default defineConfig({
       assetsInlineLimit: 0
     },
     plugins: [
+      bundledPackagesPlugin('renderer'),
       react(),
       tailwindcss(),
       {

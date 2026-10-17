@@ -11,6 +11,10 @@ interface ModalDialogProps {
   initialFocusRef?: React.RefObject<HTMLElement | null>
   // Optional text under the title, read out with it.
   description?: string
+  // 'long' for reading (license, privacy policy): wider, never taller than
+  // the window, and the children fill the height so one part of them can
+  // scroll while the rest (the Close button) stays in view.
+  size?: 'default' | 'long'
 }
 
 // A modal window inside the app, built on the browser's own <dialog>: shown
@@ -26,7 +30,8 @@ function ModalDialog({
   onCancel,
   children,
   initialFocusRef,
-  description
+  description,
+  size = 'default'
 }: ModalDialogProps): React.JSX.Element {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const titleId = useId()
@@ -76,7 +81,11 @@ function ModalDialog({
       role={role}
       aria-labelledby={titleId}
       aria-describedby={description === undefined ? undefined : descriptionId}
-      className="m-auto w-[calc(100%-32px)] max-w-60 rounded-card border border-border bg-surface p-3 text-text shadow-2xl backdrop:bg-background/70"
+      className={`m-auto w-[calc(100%-32px)] rounded-card border border-border bg-surface p-3 text-text shadow-2xl backdrop:bg-background/70 ${
+        // open:flex, not flex: a plain display value would show the dialog
+        // in the page before showModal() has run.
+        size === 'long' ? 'max-h-[calc(100dvh-64px)] max-w-90 open:flex open:flex-col' : 'max-w-60'
+      }`}
     >
       <h2 id={titleId} className="text-lg font-semibold">
         {title}
@@ -86,7 +95,9 @@ function ModalDialog({
           {description}
         </p>
       )}
-      <div className="mt-2">{children}</div>
+      <div className={size === 'long' ? 'mt-2 flex min-h-0 flex-1 flex-col' : 'mt-2'}>
+        {children}
+      </div>
     </dialog>
   )
 }

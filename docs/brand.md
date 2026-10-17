@@ -21,4 +21,4 @@ TBD. It must not resemble any store's logo.
 ## Trademarks & Affiliation
 - Store logos appear only as small "source" badges on games.
 - The app must never look official or endorsed. The privacy policy and About screen state that it is not affiliated with Valve, Epic Games, GOG, Ubisoft, Blizzard, or Electronic Arts.
-- Privacy policy draft: section 12 of @docs/sources/PROJECT_PLAN.md.
+- Privacy policy: in the app (Settings → About), spec in section 2 of @docs/features/release.md.

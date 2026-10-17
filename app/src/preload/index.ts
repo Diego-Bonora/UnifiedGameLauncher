@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { RendererApi } from '@shared/api'
+import { APP_CHANNELS } from '@shared/ipc/app-channels'
 import { EPIC_CHANNELS } from '@shared/ipc/epic-channels'
 import { FAVORITES_CHANNELS } from '@shared/ipc/favorites-channels'
 import { MANUAL_CHANNELS } from '@shared/ipc/manual-channels'
@@ -8,6 +9,10 @@ import { STEAM_CHANNELS } from '@shared/ipc/steam-channels'
 // Deliberately not exposing Electron's generic ipcRenderer: the renderer gets
 // only the named functions listed in RendererApi.
 const api: RendererApi = {
+  app: {
+    getVersion: () => ipcRenderer.invoke(APP_CHANNELS.getVersion),
+    copyProjectLink: () => ipcRenderer.invoke(APP_CHANNELS.copyProjectLink)
+  },
   steam: {
     getInstalledGames: () => ipcRenderer.invoke(STEAM_CHANNELS.getInstalledGames),
     launch: (appId) => ipcRenderer.invoke(STEAM_CHANNELS.launch, { appId }),

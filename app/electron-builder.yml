@@ -10,6 +10,16 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{.nvmrc,scripts/**}'
+  # Build-time record for the licenses list, not app code.
+  - '!out/bundled-packages/**'
+  # Shipped once, outside app.asar (extraResources below).
+  - '!out/licenses/**'
+# License texts of every shipped package (scripts/licenses.mjs), next to the
+# app as resources\licenses. Electron's own license files ship by default.
+extraResources:
+  - from: out/licenses
+    to: licenses
 win:
   executableName: UnifiedGameLauncher
   target:

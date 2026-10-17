@@ -1,3 +1,4 @@
+import type { CopyProjectLinkResult } from './ipc/app-channels'
 import type {
   EpicClearCoverKeyResult,
   EpicCoverStatus,
@@ -29,6 +30,12 @@ import type { StoreId } from './stores'
 // typed functions here (backed by zod-validated IPC in main), never a
 // generic "send any channel" escape hatch.
 export interface RendererApi {
+  // About in Settings (docs/features/release.md, section 1).
+  app: {
+    getVersion: () => Promise<string>
+    // Main copies its own constant; there is nothing to pass.
+    copyProjectLink: () => Promise<CopyProjectLinkResult>
+  }
   steam: {
     // Resolves even when nothing could be read; says which library folders
     // it couldn't see.

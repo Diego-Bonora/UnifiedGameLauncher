@@ -39,16 +39,17 @@ It replaces the draft in PROJECT_PLAN.md section 12, which describes features th
 - Your public Steam ID.
 - Your Steam Web API key and SteamGridDB key, if you add them, encrypted with Windows' built-in protection.
 - A saved copy of your Steam library (owned games).
-- Cover images for your games, named by each game's Steam or Epic id.
+- Cover images for your games: Steam and Epic covers named by each game's id, and for hand-added games a Steam poster or the icon taken from the .exe (both named by the game's own id in the app).
 - For Epic covers: the ids of Epic games seen installed, with the date last seen (kept up to 30 days after a game is uninstalled).
 - The games you add by hand (title, .exe location, launch arguments).
 - Your favorites and your settings.
+- The files Electron keeps for itself in the same folder (its cache of downloaded images, window settings). Added after the step 2 review.
 - No passwords and no store login tokens. The list of installed games is read fresh each time, not saved.
 
 **Where it's kept**
 
 - Your data: `%APPDATA%\UnifiedGameLauncher`.
-- The program: `%LOCALAPPDATA%\Programs\UnifiedGameLauncher`.
+- The program: `%LOCALAPPDATA%\Programs\unified-game-launcher`. electron-builder's per-user one-click installer names this folder after the package name, not `productName` (`getWindowsInstallationDirName` in app-builder-lib; corrected 2026-10-17, to be confirmed in step 6).
 - A copy of the installer and any downloaded update: `%LOCALAPPDATA%\unified-game-launcher-updater`.
 
 **Who the app talks to**
@@ -76,6 +77,8 @@ It replaces the draft in PROJECT_PLAN.md section 12, which describes features th
 **Contact:** open an issue on the project's GitHub page (the address, as text).
 
 PROJECT_PLAN.md section 12 gets a one-line pointer to this section instead of its draft.
+
+Built in step 2 (`app/src/renderer/src/privacy-policy.ts`) with what the app does today. The GitHub bullet, "Turn off Check for updates automatically", the settings file and the updater's downloads are added in step 4, in the same commit as the updater (the rule above). The installer copy in `%LOCALAPPDATA%\unified-game-launcher-updater` is listed already: every NSIS installer electron-builder makes stores it there.
 
 ## 3. License files
 

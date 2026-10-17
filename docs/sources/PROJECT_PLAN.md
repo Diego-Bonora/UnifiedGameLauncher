@@ -268,51 +268,6 @@ Since this is a learning project:
 
 ---
 
-## 12. Privacy Policy (Draft)
+## 12. Privacy Policy
 
-> This draft is written in plain language. Replace `[App Name]` and `[GitHub link]` before publishing.
-
-### Privacy Policy for [App Name]
-
-**Last updated:** [date]
-
-[App Name] is a personal, open-source project. It is not a commercial product and is not affiliated with Valve, Epic Games, GOG, Ubisoft, Blizzard, Electronic Arts, or any other game store.
-
-**What data the app uses**
-
-- Login tokens for the game stores you choose to connect
-- API keys you enter (such as a Steam Web API key)
-- Your Steam ID and similar public account identifiers
-- Your game library: game names, IDs, cover images, install locations
-- App settings
-
-**Where your data is stored**
-
-All data is stored only on your computer, in the app's data folder (`%APPDATA%\[App Name]`). Login tokens and API keys are encrypted using Windows' built-in protection.
-
-**What the app never does**
-
-- It never asks for or stores your passwords. You log in on each store's own website
-- It never sends your data to the developer or any server owned by the developer
-- It contains no analytics, tracking, or ads
-
-**Who the app communicates with**
-
-The app connects directly from your computer to:
-
-- The game stores you connect (to get your library)
-- Image services (to download cover art): Steam's image servers, and SteamGridDB for Epic games if you add a SteamGridDB key (it receives your key and the Epic ids of your installed games)
-- Steam's store search, for games you added by hand and set to "Steam cover": it receives the game's title to find its poster. Games set to "Exe icon" send nothing
-- GitHub (to check for updates, if enabled)
-
-These services have their own privacy policies.
-
-**How to delete your data**
-
-- Disconnect a store from the app's settings to delete its saved tokens
-- Revoke the app's access from your account settings on each store's website
-- Uninstall the app and delete the `%APPDATA%\[App Name]` folder to remove everything
-
-**Contact**
-
-For questions, open an issue at [GitHub link].
+Replaced on 2026-10-17 by the in-app policy: see section 2 of docs/features/release.md and `app/src/renderer/src/privacy-policy.ts`. The old draft described features the app doesn't have (store login tokens, a disconnect for every store).
