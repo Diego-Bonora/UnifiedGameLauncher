@@ -45,7 +45,11 @@ export const ALLOWED_LICENSES = new Set([
 // in the repo under scripts/license-texts/, and the entry is for one exact
 // version, so an update has to be looked at again.
 // Shape: 'name@version': { license: 'SPDX id', file: 'scripts/license-texts/…' }
-export const LICENSE_EXCEPTIONS = {}
+export const LICENSE_EXCEPTIONS = {
+  // electron-updater's dependency. MIT in package.json; no license file in the
+  // package or its repository.
+  'lazy-val@1.0.5': { license: 'MIT', file: 'scripts/license-texts/lazy-val-1.0.5-MIT.txt' }
+}
 
 // A package.json `license` is an SPDX expression. With OR one allowed choice
 // is enough; with AND every part must be allowed. WITH (license exceptions)

@@ -22,8 +22,68 @@
       "license": "OFL-1.1"
     },
     {
+      "name": "argparse",
+      "version": "2.0.1",
+      "license": "Python-2.0"
+    },
+    {
+      "name": "builder-util-runtime",
+      "version": "9.7.0",
+      "license": "MIT"
+    },
+    {
+      "name": "debug",
+      "version": "4.4.3",
+      "license": "MIT"
+    },
+    {
       "name": "electron",
       "version": "39.8.10",
+      "license": "MIT"
+    },
+    {
+      "name": "electron-updater",
+      "version": "6.8.9",
+      "license": "MIT"
+    },
+    {
+      "name": "fs-extra",
+      "version": "10.1.0",
+      "license": "MIT"
+    },
+    {
+      "name": "graceful-fs",
+      "version": "4.2.11",
+      "license": "ISC"
+    },
+    {
+      "name": "js-yaml",
+      "version": "4.3.2",
+      "license": "MIT"
+    },
+    {
+      "name": "jsonfile",
+      "version": "6.2.1",
+      "license": "MIT"
+    },
+    {
+      "name": "lazy-val",
+      "version": "1.0.5",
+      "license": "MIT"
+    },
+    {
+      "name": "lodash.escaperegexp",
+      "version": "4.1.2",
+      "license": "MIT"
+    },
+    {
+      "name": "lodash.isequal",
+      "version": "4.5.0",
+      "license": "MIT"
+    },
+    {
+      "name": "ms",
+      "version": "2.1.3",
       "license": "MIT"
     },
     {
@@ -37,13 +97,33 @@
       "license": "MIT"
     },
     {
+      "name": "sax",
+      "version": "1.6.1",
+      "license": "BlueOak-1.0.0"
+    },
+    {
       "name": "scheduler",
       "version": "0.28.0",
       "license": "MIT"
     },
     {
+      "name": "semver",
+      "version": "7.7.4",
+      "license": "ISC"
+    },
+    {
       "name": "tailwindcss",
       "version": "4.3.3",
+      "license": "MIT"
+    },
+    {
+      "name": "tiny-typed-emitter",
+      "version": "2.1.0",
+      "license": "MIT"
+    },
+    {
+      "name": "universalify",
+      "version": "2.0.1",
       "license": "MIT"
     },
     {

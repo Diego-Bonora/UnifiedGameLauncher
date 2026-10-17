@@ -11,6 +11,7 @@ import { createFavoritesStore } from './storage/favorites-store'
 import { createManualGamesFile } from './stores/manual'
 import { registerSteamIpc } from './ipc/steam'
 import { registerSteamAuthIpc } from './ipc/steam-auth'
+import { registerUpdatesIpc } from './ipc/updates'
 import { registerCoverProtocol, registerCoverScheme } from './library/cover-protocol'
 
 // Pin the data folder to %APPDATA%\<APP_NAME> so it can't drift if the
@@ -116,6 +117,7 @@ if (!app.requestSingleInstanceLock()) {
     // star through the same favorites store.
     registerManualIpc(createManualGamesFile(), favorites)
     registerSteamAuthIpc()
+    registerUpdatesIpc()
     registerCoverProtocol()
 
     // Default open or close DevTools by F12 in development

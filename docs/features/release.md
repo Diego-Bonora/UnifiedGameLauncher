@@ -43,6 +43,7 @@ It replaces the draft in PROJECT_PLAN.md section 12, which describes features th
 - For Epic covers: the ids of Epic games seen installed, with the date last seen (kept up to 30 days after a game is uninstalled).
 - The games you add by hand (title, .exe location, launch arguments).
 - Your favorites and your settings.
+- A random ID the update checker creates on its first check (`.updaterId` in the data folder). It stays the same between checks and is sent to GitHub with each one (electron-updater's `x-user-staging-id` header; read in its code 2026-10-17, user's call: disclose it).
 - The files Electron keeps for itself in the same folder (its cache of downloaded images, window settings). Added after the step 2 review.
 - No passwords and no store login tokens. The list of installed games is read fresh each time, not saved.
 
@@ -61,7 +62,7 @@ It replaces the draft in PROJECT_PLAN.md section 12, which describes features th
   - Steam's image servers send the covers.
   - Steam's store search gets the titles of hand-added games set to "Steam cover". Games set to "Exe icon" send nothing.
 - **SteamGridDB:** only if you add a key. It gets your key and the ids of your installed Epic games; its image server sends the covers.
-- **GitHub:** only while "Check for updates automatically" is on, or when you press Check now. It receives an ordinary web request for the newest version's info (it sees your IP address, like any website), and the update files if you choose Download.
+- **GitHub:** only while "Check for updates automatically" is on, or when you press Check now. It receives a request for the newest version's info, with this install's random update ID and your IP address, like any website, and sends the update files if you choose Download. The ID is not sent with downloads.
 - These services have their own privacy policies.
 
 **What the app never does:** ask for passwords; send data to the developer or any server of the developer's; include analytics, tracking or ads.
@@ -100,10 +101,10 @@ Built in step 2 (`app/src/renderer/src/privacy-policy.ts`) with what the app doe
 **Updater settings, set explicitly in code** (not left to defaults, because some defaults break the user's calls):
 
 - `autoDownload = false`: the default `true` would download without asking.
-- `autoInstallOnAppQuit = true` only while the switch is on and an update was downloaded; it is set to `false` when the switch is turned off.
+- `autoInstallOnAppQuit` follows the switch (`false` until settings.json is read, and after Restart now). It only has an effect once an update was downloaded.
 - `allowPrerelease = false` and `allowDowngrade = false`.
 
-**Never in development:** unpackaged builds don't check (electron-updater skips them, and main doesn't start the timer). The Settings group says "Updates are off in development builds."
+**Never in development:** unpackaged builds don't check (electron-updater skips them, and main doesn't start the timer). The Settings group says "Updates are off in development builds." If electron-updater can't start in an installed copy (it refuses a version that isn't valid semver), the window still opens, nothing is checked, and Settings says "Updates aren't available in this copy" (`updaterUnavailable`).
 
 **Setting:** `checkForUpdates: boolean` in a new `settings.json`. Plain JSON, saved through one queue with temp-file-then-rename like the other stores.
 
@@ -116,11 +117,16 @@ Built in step 2 (`app/src/renderer/src/privacy-policy.ts`) with what the app doe
 - About 10 seconds after startup, so the library draws first.
 - Every 6 hours while the app is open.
 - When the user presses **Check now**, even with the switch off: that one press is a check the user asked for.
-- The automatic checks stop once an update is downloaded, so the state can't fall back from "Ready" to "Available". If a newer release appears after that, it's picked up at the next app start.
+- The automatic checks pause while a version is offered, downloading or downloaded: a re-check would hide the sidebar notice while it runs, or change the version under a download. A newer release is picked up at the next app start. (Changed in step 4 from "stop once downloaded".)
+- After a failed download the automatic checks go on, so a fixed release can replace a broken one. Main remembers the failed version until a check succeeds: an automatic check that fails (most often the same bad connection) goes back to "download failed" for it, so Download again stays offered. A failed Check now still shows its own message, and the next failed automatic check brings Download again back.
+- While such a check runs (at most 60 s every 6 hours), the state is "checking" and the Download again notice is hidden. Accepted.
+- A check that timed out forgets the failed version: electron-updater may still finish that request later and switch what Download would fetch, so only a check that succeeds offers a download again.
+- **Time limits:** electron-updater's own request timeout never fires under Electron's network module, so main sets its own. A check with no answer after 60 s counts as a failed check. A download is stopped and counts as failed after 2 minutes without progress, or 10 minutes before the first progress report (progress needs the server to send the file size). A request that hangs inside electron-updater can make later checks time out too, until the app restarts.
 
 **States** (one state in main; the window only shows it):
 `idle` → `checking` → `upToDate` | `available(version)` | `checkFailed`;
-`available` → `downloading(percent)` → `ready(version)` | `downloadFailed`.
+`available` → `downloading(percent)` → `ready(version)` | `downloadFailed` | `available` (switch turned off);
+`downloadFailed` → `downloading` (Download again) or `checking` → as above, or back to `downloadFailed` (see "When it checks").
 
 - Only one check or download runs at a time.
 - **Check now during an automatic check** joins it, and is then treated as a manual check: its failure shows a message.
@@ -131,23 +137,25 @@ Built in step 2 (`app/src/renderer/src/privacy-policy.ts`) with what the app doe
 
 1. **Available:** a small notice at the bottom of the sidebar, above Settings: "Version X.Y.Z is available", with **Download** and **Later**. Later hides it for that version until the app restarts.
 2. **Downloading:** "Downloading update… NN%".
-3. **Ready:** "Update ready", with **Restart now**. Without a click, the update installs when the user quits the app.
+3. **Ready:** "Update ready", with **Restart now**. Without a click, the update installs when the user quits the app, if the switch was on when the download finished: electron-updater sets up install-on-quit at that moment only. An update downloaded with the switch off installs only through Restart now, even if the switch is turned on later in that session.
 4. **Settings:** the same state as text: "You're up to date (version X)", "Checking…", "Version X is available", "Downloading… NN%", "Ready to install: restart the app", or a problem.
 
 **Problems** (friendly, never raw):
 
-- **The automatic check fails** (offline, or GitHub unreachable): the sidebar shows nothing, and Settings shows "Couldn't check for updates last time." It tries again at the next scheduled check.
+- **The automatic check fails** (offline, or GitHub unreachable): the sidebar shows nothing, and Settings shows "Couldn't check for updates last time." It tries again at the next scheduled check. After a failed download it goes back to "download failed" instead (see "When it checks").
 - **Check now fails:** "Couldn't check for updates. Check your internet connection and try again."
-- **The download fails:** "The update couldn't be downloaded. Try again later." The notice offers Download again. A broken file is never installed.
+- **The download fails:** "The update couldn't be downloaded. Try again later." The notice offers Download again. A broken file is never installed: full and partial downloads are checked against `latest.yml`'s sha512, and a saved download is checked again before reuse (read in electron-updater's code in step 4).
+- **Known limit:** if a step after the file was saved and checked fails (for example antivirus locking a helper file), the window shows the download as failed, but with the switch on that checked file still installs on quit.
 - **A release has no `latest.yml`** (a mistake in the release): counts as a failed check, and is logged.
 
 **Switch turned off mid-way:**
 
-- **While downloading:** the download is cancelled.
+- **During a check:** that request finishes; no new automatic one starts.
+- **While downloading:** the download is cancelled and the version is offered again. A download already past the point where it can stop ends in Ready, and doesn't install on quit.
 - **With an update ready:** it no longer installs on quit. Restart now in Settings still works, because that's a click the user asked for.
 - **Either way:** the 6-hour timer stops.
 
-**Restart now:** calls `quitAndInstall` the normal way (a non-silent install that starts the app again when it finishes, NSIS `runAfterFinish`). Main releases the single-instance lock before quitting, so the freshly started copy isn't refused. This is checked on Windows in step 6.
+**Restart now:** accepted once per run: later presses are refused, because a second request could make electron-updater start a second, silent installer at quit (turning install-on-quit off first, below, also prevents it). It turns install-on-quit off and calls `quitAndInstall` the normal way (a non-silent install that starts the app again when it finishes, NSIS `runAfterFinish`). Main releases the single-instance lock before quitting, so the freshly started copy isn't refused. This is checked on Windows in step 6.
 
 **Unsigned installer:** electron-updater works without code signing. No signing is configured, so `app-update.yml` has no `publisherName` and the update's signature isn't checked (verified in the review). If signing is ever added, this changes on its own; a note in `electron-builder.yml` says so.
 
@@ -226,4 +234,5 @@ On the user's PC, with real releases:
 
 - Whether an update installed by electron-updater triggers SmartScreen for an unsigned app (step 6).
 - Whether the new copy started after Restart now ever loses to the old one's single-instance lock (step 6).
-- Not read in the review: whether electron-updater checks the download against `latest.yml`'s sha512, and how a missing `latest.yml` surfaces. Read in the installed package's code in step 4, before relying on either.
+- ~~Whether electron-updater checks the download against `latest.yml`'s sha512, and how a missing `latest.yml` surfaces.~~ Read in step 4: both checked (see "The download fails"); a missing `latest.yml` or no release rejects the check (`ERR_UPDATER_CHANNEL_FILE_NOT_FOUND`, "No published versions on GitHub").
+- If electron-updater can't start the installer after Restart now (no downloaded file found), the app doesn't quit and Restart stays refused for that run. Rare; accepted in step 4.

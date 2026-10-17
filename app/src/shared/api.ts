@@ -24,6 +24,11 @@ import type {
   SteamConnectResult,
   SteamDisconnectResult
 } from './ipc/steam-channels'
+import type {
+  UpdateActionResult,
+  UpdateSetEnabledResult,
+  UpdateStatus
+} from './ipc/updates-channels'
 import type { StoreId } from './stores'
 
 // The complete surface the renderer may call. Each milestone adds named,
@@ -106,5 +111,13 @@ export interface RendererApi {
     // Resolves for every expected outcome, with what main really has saved;
     // rejects only for a malformed request.
     set: (store: StoreId, id: string, favorite: boolean) => Promise<FavoriteSetResult>
+  }
+  updates: {
+    getStatus: () => Promise<UpdateStatus>
+    checkNow: () => Promise<UpdateActionResult>
+    download: () => Promise<UpdateActionResult>
+    restartAndInstall: () => Promise<UpdateActionResult>
+    setEnabled: (enabled: boolean) => Promise<UpdateSetEnabledResult>
+    onStatusChanged: (callback: () => void) => () => void
   }
 }

@@ -5,6 +5,7 @@ import { EPIC_CHANNELS } from '@shared/ipc/epic-channels'
 import { FAVORITES_CHANNELS } from '@shared/ipc/favorites-channels'
 import { MANUAL_CHANNELS } from '@shared/ipc/manual-channels'
 import { STEAM_CHANNELS } from '@shared/ipc/steam-channels'
+import { UPDATES_CHANNELS } from '@shared/ipc/updates-channels'
 
 // Deliberately not exposing Electron's generic ipcRenderer: the renderer gets
 // only the named functions listed in RendererApi.
@@ -75,6 +76,21 @@ const api: RendererApi = {
     list: () => ipcRenderer.invoke(FAVORITES_CHANNELS.list),
     set: (store, id, favorite) =>
       ipcRenderer.invoke(FAVORITES_CHANNELS.set, { store, id, favorite })
+  },
+  updates: {
+    getStatus: () => ipcRenderer.invoke(UPDATES_CHANNELS.getStatus),
+    checkNow: () => ipcRenderer.invoke(UPDATES_CHANNELS.checkNow),
+    download: () => ipcRenderer.invoke(UPDATES_CHANNELS.download),
+    restartAndInstall: () => ipcRenderer.invoke(UPDATES_CHANNELS.restartAndInstall),
+    setEnabled: (enabled) => ipcRenderer.invoke(UPDATES_CHANNELS.setEnabled, { enabled }),
+    onStatusChanged: (callback) => {
+      // Same as Steam's: the event object is not passed on.
+      const listener = (): void => callback()
+      ipcRenderer.on(UPDATES_CHANNELS.statusChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(UPDATES_CHANNELS.statusChanged, listener)
+      }
+    }
   }
 }
 

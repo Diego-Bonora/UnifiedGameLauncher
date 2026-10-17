@@ -31,7 +31,8 @@ export const PRIVACY_SECTIONS: PolicySection[] = [
       "Cover images for your games: Steam and Epic covers named by each game's id, and for hand-added games a Steam poster or the icon taken from the .exe.",
       'For Epic covers: the ids of Epic games seen installed, with the date last seen (kept up to 30 days after a game is uninstalled).',
       'The games you add by hand (title, .exe location, launch arguments).',
-      'Your favorites.',
+      'Your favorites and your settings.',
+      "A random ID that the update checker creates the first time it checks (a file named .updaterId). It stays the same between checks, so GitHub can tell your checks apart from other installs' checks; it is sent with each update check.",
       'The files Electron, the framework the app is built on, keeps for itself, such as a cache of downloaded cover images and the window settings.',
       'No passwords and no store login tokens. The list of installed games is read fresh each time, not saved.'
     ]
@@ -41,7 +42,10 @@ export const PRIVACY_SECTIONS: PolicySection[] = [
     items: [
       { lead: 'Your data:', text: `%APPDATA%\\${APP_NAME}` },
       { lead: 'The program:', text: `%LOCALAPPDATA%\\Programs\\${PACKAGE_NAME}` },
-      { lead: 'A copy of the installer:', text: `%LOCALAPPDATA%\\${PACKAGE_NAME}-updater` }
+      {
+        lead: 'A copy of the installer and any downloaded update:',
+        text: `%LOCALAPPDATA%\\${PACKAGE_NAME}-updater`
+      }
     ]
   },
   {
@@ -60,6 +64,10 @@ export const PRIVACY_SECTIONS: PolicySection[] = [
       {
         lead: 'SteamGridDB:',
         text: 'only if you add a key. It gets your key and the ids of your installed Epic games; its image server sends the covers.'
+      },
+      {
+        lead: 'GitHub:',
+        text: 'only while "Check for updates automatically" is on, or when you press Check now. It receives a request for the newest version\'s info, with this install\'s random update ID (see above) and your IP address, like any website, and sends the update files if you choose Download.'
       },
       'These services have their own privacy policies.'
     ]
@@ -84,6 +92,7 @@ export const PRIVACY_SECTIONS: PolicySection[] = [
         text: 'next to each key deletes that key. Covers already saved stay until you delete the data folder.'
       },
       'Remove a hand-added game from its ⋯ menu.',
+      'Turn off "Check for updates automatically" in Settings, and the app stops asking GitHub for updates.',
       `Uninstall the app, then delete %APPDATA%\\${APP_NAME} and %LOCALAPPDATA%\\${PACKAGE_NAME}-updater. The uninstaller leaves your data, so your library survives a reinstall.`
     ]
   },

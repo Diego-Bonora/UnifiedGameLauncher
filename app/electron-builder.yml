@@ -30,7 +30,10 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
-# Updates are read from GitHub Releases (electron-updater is added in Milestone 7).
+# Where electron-updater looks for updates: electron-builder writes this into
+# the installed app as app-update.yml, and nothing else can change it. No code
+# signing is configured, so app-update.yml has no publisherName and updates'
+# signatures aren't checked; adding signing turns that check on by itself.
 publish:
   provider: github
   owner: Diego-Bonora
