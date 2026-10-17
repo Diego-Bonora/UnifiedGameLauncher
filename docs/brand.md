@@ -16,7 +16,7 @@ Plain and friendly. No jargon in user-facing messages. Errors always tell the us
 See @docs/design/direction.md.
 
 ## Logo
-TBD. It must not resemble any store's logo.
+A fan of three cover cards in the accent violet on a dark rounded tile (chosen 2026-10-17). Source: `app/build/icon.svg`; `npm run icon` renders the PNG and ICO files. It must not resemble any store's logo.
 
 ## Trademarks & Affiliation
 - Store logos appear only as small "source" badges on games.

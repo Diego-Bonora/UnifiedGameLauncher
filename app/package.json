@@ -26,6 +26,7 @@
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build && node scripts/check-preload-deps.mjs && node scripts/licenses.mjs",
     "licenses": "electron-vite build && node scripts/licenses.mjs --write && electron-vite build",
+    "icon": "electron scripts/render-icon.mjs",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder --win nsis --publish never"

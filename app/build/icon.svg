@@ -1,0 +1,23 @@
+<!--
+  App icon source (docs/features/release.md, section 6). Drawn from plain
+  rectangles, nothing copied. `npm run icon` renders build/icon.png,
+  build/icon.ico and resources/icon.png from it.
+
+  A fan of three cover cards: a game library, unlike any store's logo.
+  The front card's sides and top sit on a 16-unit grid, so they land on whole
+  pixels at 16 px; the tilted cards can't, which is why they look soft there.
+  The side cards are shorter than the front one so that, once tilted, their
+  bottoms end hidden behind it.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Tile: Surface colour with a Border-coloured edge (docs/design/direction.md). -->
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="#14141C"/>
+  <rect x="4" y="4" width="248" height="248" rx="52" fill="none" stroke="#2A2A3A" stroke-width="8"/>
+  <!-- Side cards, darker shades of the accent so the front card leads. -->
+  <rect x="80" y="56" width="96" height="128" rx="12" fill="#4A3790" transform="rotate(-16 128 224)"/>
+  <rect x="80" y="56" width="96" height="128" rx="12" fill="#6D4AC9" transform="rotate(16 128 224)"/>
+  <!-- A tile-coloured margin keeps the front card apart from the side cards. -->
+  <rect x="74" y="42" width="108" height="164" rx="17" fill="#14141C"/>
+  <!-- Front card in the accent colour. -->
+  <rect x="80" y="48" width="96" height="152" rx="12" fill="#8B5CF6"/>
+</svg>

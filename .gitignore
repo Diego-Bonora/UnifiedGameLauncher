@@ -20,6 +20,8 @@ ui-debug.log
 # Build outputs
 dist/
 build/
+# electron-builder's buildResources folder: the icon source and files, not output.
+!app/build/
 .next/
 out/
 
