@@ -18,7 +18,10 @@ import type {
   SteamConnectionStatus,
   SteamHandOffResult,
   SteamInstalledResult,
-  SteamLibraryResult
+  SteamLibraryResult,
+  SteamSetApiKeyResult,
+  SteamConnectResult,
+  SteamDisconnectResult
 } from './ipc/steam-channels'
 import type { StoreId } from './stores'
 
@@ -34,14 +37,15 @@ export interface RendererApi {
     // request; reject only for a malformed appId.
     launch: (appId: string) => Promise<SteamHandOffResult>
     install: (appId: string) => Promise<SteamHandOffResult>
-    signIn: () => Promise<SteamConnectionStatus>
+    signIn: () => Promise<SteamConnectResult>
     cancelSignIn: () => Promise<void>
-    disconnect: () => Promise<SteamConnectionStatus>
+    disconnect: () => Promise<SteamDisconnectResult>
     getConnectionStatus: () => Promise<SteamConnectionStatus>
-    setApiKey: (apiKey: string) => Promise<SteamConnectionStatus>
+    setApiKey: (apiKey: string) => Promise<SteamSetApiKeyResult>
     clearApiKey: () => Promise<SteamConnectionStatus>
     // Resolves for every expected outcome (live, saved copy, or nothing to
-    // show); rejects only if main is called in the wrong state.
+    // show); rejects only if main is called in the wrong state (a caller
+    // bug), so its message is never shown.
     getOwnedGames: () => Promise<SteamLibraryResult>
     // null when nothing is saved for the connected account yet.
     getCachedLibrary: () => Promise<SteamCachedLibrary | null>

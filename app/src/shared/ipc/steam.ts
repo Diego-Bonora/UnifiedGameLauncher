@@ -12,7 +12,10 @@ export type {
   SteamCachedLibrary,
   SteamLibraryFailure,
   SteamLibraryProblem,
-  SteamLibraryResult
+  SteamLibraryResult,
+  SteamSetApiKeyResult,
+  SteamConnectResult,
+  SteamDisconnectResult
 } from './steam-channels'
 
 // Only main imports this file (it needs zod for validation). Preload and the

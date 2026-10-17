@@ -79,3 +79,4 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 - [2026-10-15] The renderer guessed "hiccup" from a null cover URL. Have the producer say "unknown" explicitly, narrowly; trust every other answer.
 - [2026-10-15] A new background reload made "newest request wins" drop a saved change. Order changes separately; re-read when a read overtook one.
 - [2026-10-15] Six PowerShell checks pasted as one block hid half their output. One command per block, ending in `| Out-String`; avoid wildcards the user must copy.
+- [2026-10-17] A disconnect guard counter was taken after the awaits that read the connection, so a read in between still saved data. Take guards before the first state read, re-check after each await, loop on a shared in-flight promise.

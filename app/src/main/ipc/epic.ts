@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron'
+import { shell } from 'electron'
 import { EPIC_CHANNELS } from '@shared/ipc/epic'
 import {
   getEpicCoverProblem,
@@ -9,6 +9,7 @@ import {
 } from '../library/epic-cover-cache'
 import { clearSecret, getSecret, setSecret } from '../storage/secret-store'
 import { epicProvider } from '../stores/epic'
+import { handleFromApp } from './app-handle'
 import { createEpicCoverHandlers } from './epic-cover-handlers'
 import { detectEpicAppNames, launchEpicGame, listEpicInstalledGames } from './epic-handlers'
 import { notifyAllWindows } from './notify-windows'
@@ -31,15 +32,16 @@ export function registerEpicIpc(): void {
     notify: () => notifyAllWindows(EPIC_CHANNELS.coversChanged, 'epic-covers')
   })
 
-  ipcMain.handle(EPIC_CHANNELS.getInstalledGames, () =>
+  // Launching and the key change programs and saved data: app page only.
+  handleFromApp(EPIC_CHANNELS.getInstalledGames, () =>
     listEpicInstalledGames(epicProvider, covers.listCovers)
   )
-  ipcMain.handle(EPIC_CHANNELS.launch, (_event, rawRequest: unknown) =>
+  handleFromApp(EPIC_CHANNELS.launch, (_event, rawRequest: unknown) =>
     launchEpicGame(epicProvider, rawRequest, (url) => shell.openExternal(url))
   )
-  ipcMain.handle(EPIC_CHANNELS.getCoverStatus, () => covers.getStatus())
-  ipcMain.handle(EPIC_CHANNELS.setCoverKey, (_event, rawRequest: unknown) =>
+  handleFromApp(EPIC_CHANNELS.getCoverStatus, () => covers.getStatus())
+  handleFromApp(EPIC_CHANNELS.setCoverKey, (_event, rawRequest: unknown) =>
     covers.setKey(rawRequest)
   )
-  ipcMain.handle(EPIC_CHANNELS.clearCoverKey, () => covers.clearKey())
+  handleFromApp(EPIC_CHANNELS.clearCoverKey, () => covers.clearKey())
 }

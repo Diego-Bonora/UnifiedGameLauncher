@@ -12,3 +12,14 @@
 **Verified:** macOS dev via CDP screenshots (columns follow the width, drawer focus/Esc, install message, focus after a removed card); Windows by the user (layout, play, install, the four covers).
 **Next:** Milestone 6.
 **Blocked by:** nothing. Open: `SteamPath` spelling and `reg` exit code 1 unverified on Windows; whether `openExternal` rejects when nothing handles `steam://` (Epic's `launcherUnavailable` too); a sign-in finishing before the first connection read can be overwritten by it; "Open Settings" focus untried in the app; a leftover Steam registry key keeps old games for the session; Node 20 actions in CI; user to rotate the SteamGridDB key; older items in the 2026-10-02 entry.
+
+## 2026-10-03 (Milestone 6: search, favorites, manual games, manual covers in main)
+**Decided (spec `docs/features/library-tools.md`, user's calls):** "sort by store" = the sidebar views plus a new **Manual** store; filters = one search box per view (shared query); favorites = a star that pins to the top (no Favorites view); manual covers = per-game choice **Steam cover** (exact-title Steam match, falls back to the exe icon) or **Exe icon** (title never sent). New launch arguments are saved only after main's own native confirmation dialog; an exe refused by Windows (incl. admin-only) gets a "run as administrator" message. `StoreProvider` split into `UrlStoreProvider` (Steam, Epic) and `DirectStoreProvider` (Manual). Steam store search verified with one plain request from the user's Mac (keyless; fixture `stores/manual/fixtures/storesearch-hollow-knight.json`).
+**Built (5 feature commits, `0349cd6`..`72ffa4c`, 687 tests, 509 before):**
+- 1 search: `game-search.ts`, `SearchBox.tsx`. 2 favorites: `favorites-store.ts`, `use-favorites.ts`, star in `GameTile`.
+- 3a main: `stores/manual/` (file, `exe-path`, `manual-launch` verbatim args), `manual-handlers.ts`, `manual.ts`, `security/ipc-sender.ts`. 3b UI: `ModalDialog`, `ManualGameDialogs`, `ManualGameMenu`, `use-manual-actions`, `manual-messages`.
+- 4a covers in main: `steam-title-search.ts`, `manual-covers.ts` (once per session, miss per title), `setCoverSource`, `coversChanged`. Privacy draft line added.
+**Fixed by review (~60 findings, every fix re-reviewed):** e.g. hidden characters could fake the args dialog; dialogs closed themselves in dev (StrictMode); a locked list file looped icon rewrites.
+**Verified (Linux container, headless Electron + CDP):** search, stars, manual launch with args, menu/dialog keyboard paths, icons. Steam is blocked by this container's proxy.
+**Next:** Step 4b, then the Windows test (args dialog, path with spaces, .lnk refused, admin-only and console exes).
+**Blocked by:** nothing. Open: admin-only exe error code (EACCES expected); console exes have no window; icons are 32 px; older items below.

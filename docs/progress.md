@@ -3,15 +3,46 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4, the library layout and all of Milestone 6 are on `main` (`755ce03`, 709 tests), including the new "★ Favorites" / "All" sub-groups. The user's Windows test of Milestone 6 is half done: search, Add game, launch, Steam cover, Rename, Change .exe and Exe icon work. The current installer is from run 38780888761. Xbox app games can't be manual games; they are a v2 store (draft spec `docs/features/xbox-store.md`).
+Milestones 0–4, the library layout and Milestone 6 are on `main`. Milestone 7 (release) has a reviewed spec, `docs/features/release.md`. Its Step 1 is done (738 tests): bug fixes, Disconnect Steam, typed Steam results, and a sender check on every IPC channel. The Milestone 6 Windows test is still half done (installer run 38780888761); it is a separate task now, not part of Milestone 7.
 
 ## In Progress
-The rest of the Windows test of Milestone 6, with the installer from run 38780888761.
+Milestone 7, one step at a time: 2) About + privacy policy + licenses, 3) app icon, 4) auto-updates, 5) release workflow, 6) Windows test of the release path.
 
 ## Next Up
-Finish the Windows test: Favorites sub-groups; launch arguments (Notepad + `"C:\Test Folder\hello.txt"`, native confirmation); `C:\Windows\regedit.exe` (expect "Windows wouldn't start…"); `ipconfig.exe` (console limit); Remove. Fix what it finds, then Milestone 7.
+Milestone 7 Step 2: the About group in Settings, the privacy policy, `LICENSE` and the generated components list (spec sections 1–3).
 
 ---
+
+## 2026-10-17 (Milestone 7 spec and Step 1)
+**Decided (spec `docs/features/release.md`, user's calls):**
+- **Release basics:** v1 keeps the name UnifiedGameLauncher and ships under MIT.
+- **Updates:** the app asks before downloading. A Settings switch is on by default; an unreadable `settings.json` counts as off.
+- **About and privacy:** About + privacy go at the bottom of Settings. Copy link goes through a main IPC with no arguments; no `https://` is added to the allow-list.
+- **Release flow:** CI uploads to a draft release on a `v*` tag. The test releases are 0.9.0 → 0.9.1, then 1.0.0. `appId`, the package name and the repo are kept for good.
+- **Disconnect** deletes account data only (Steam ID, saved library, covers of games not in the latest installed read); the key and favorites stay.
+- **Spec review (16 findings, folded in):** `autoDownload` must be switched off; the privacy draft was inaccurate (updater cache in `%LOCALAPPDATA%`, no installed list saved); some bundled licenses aren't MIT; the updater states and CI edge cases were missing.
+
+**Built (738 tests, 709 before):**
+- `manual-covers.ts`: Change .exe to an exe without an icon drops the old icon. A folder that can't be listed stops the sync.
+- `cover-files.ts` `listCoverFilesIn` rejects on anything but ENOENT; each caller decides what that means.
+- Typed `SteamConnectResult`, `SteamSetApiKeyResult`, `SteamDisconnectResult`; wording in new `steam-messages.ts`.
+- Disconnect:
+  - `steam-auth.ts`: data first, connection last, stays connected on failure.
+  - The `disconnectGeneration` counter is taken before the state read; `waitForDisconnects()` loops; a read overtaken by a disconnect saves nothing.
+  - `cover-cache.ts`: `latestInstalled` decides what `clearCovers` keeps.
+  - UI: `DisconnectSteamDialog.tsx`, the button and focus return in `SettingsScreen.tsx`, `'done' | 'failed' | 'busy'` in `use-steam-library.ts`.
+- `ipc/app-handle.ts` `handleFromApp` (the sender check, moved from `manual.ts`) now wraps every handler in steam, steam-auth, epic, favorites and manual.
+- `dialog-buttons.ts`: shared button styles.
+
+**Fixed by review (3 rounds, last clean):** a read already checking the connection still saved the library after Disconnect; covers of games uninstalled this session survived it; a stuck error line; a second click closed the dialog; no sender check outside manual games.
+
+**Verified:**
+- **Dev app (macOS, CDP):** the dialog survives StrictMode; Esc and Cancel return focus; a real Disconnect deletes the Steam ID and library and keeps the key (dev data backed up and restored).
+- **Dev app and production build (`file://`):** the Steam, Epic, favorites and manual calls pass the sender check.
+- **Not verified:** installed covers surviving Disconnect on a real PC (no Steam games on the Mac); that is Windows test item 7.
+
+**Next:** Step 2 (About, privacy, licenses).
+**Blocked by:** nothing. Open: the Milestone 6 Windows test items; the spec's open items (SmartScreen during an update, the single-instance lock after Restart now, the sha512 / missing `latest.yml` behaviour, to be read in step 4); older open items in progress-archive.md.
 
 ## 2026-10-15 (Windows test of Milestone 6, Xbox v2 spec, Favorites sub-groups)
 **Windows test (user, installer run 38766994554):** works: search, Add game (Overwatch, path with spaces), launch, Steam cover by exact title, Rename, Change .exe, Exe icon switch. Found: Minecraft Launcher in `C:\XboxGames\…\Content` can't be picked (Windows permission error in the file dialog itself, not the app).
@@ -32,15 +63,4 @@ Finish the Windows test: Favorites sub-groups; launch arguments (Notepad + `"C:\
 **Fixed by review (3 rounds):** a covers reload could hide a saved change; the renderer guessed why a URL was null; one locked unrelated file stopped all cover updates. Last fix not re-reviewed (user's call).
 **Verified (headless dev app + CDP, seeded games):** each cover kind; menu by keyboard; switching both ways; a re-read icon reaches the window with no loop; an unlistable folder keeps shown covers. Not verified: a real Steam poster (proxy blocks Steam); the overtaken-change fix live (needs clicking main's native dialog; no xdotool here).
 **Next:** the Windows test of Milestone 6.
-**Blocked by:** nothing. Open: after Change .exe to an exe with no readable icon, main keeps showing the old exe's icon (pre-existing, in `manual-covers.ts`); the sync's own `listFiles()` still treats an unlistable folder as empty (pre-existing); older items below.
-
-## 2026-10-03 (Milestone 6: search, favorites, manual games, manual covers in main)
-**Decided (spec `docs/features/library-tools.md`, user's calls):** "sort by store" = the sidebar views plus a new **Manual** store; filters = one search box per view (shared query); favorites = a star that pins to the top (no Favorites view); manual covers = per-game choice **Steam cover** (exact-title Steam match, falls back to the exe icon) or **Exe icon** (title never sent). New launch arguments are saved only after main's own native confirmation dialog; an exe refused by Windows (incl. admin-only) gets a "run as administrator" message. `StoreProvider` split into `UrlStoreProvider` (Steam, Epic) and `DirectStoreProvider` (Manual). Steam store search verified with one plain request from the user's Mac (keyless; fixture `stores/manual/fixtures/storesearch-hollow-knight.json`).
-**Built (5 feature commits, `0349cd6`..`72ffa4c`, 687 tests, 509 before):**
-- 1 search: `game-search.ts`, `SearchBox.tsx`. 2 favorites: `favorites-store.ts`, `use-favorites.ts`, star in `GameTile`.
-- 3a main: `stores/manual/` (file, `exe-path`, `manual-launch` verbatim args), `manual-handlers.ts`, `manual.ts`, `security/ipc-sender.ts`. 3b UI: `ModalDialog`, `ManualGameDialogs`, `ManualGameMenu`, `use-manual-actions`, `manual-messages`.
-- 4a covers in main: `steam-title-search.ts`, `manual-covers.ts` (once per session, miss per title), `setCoverSource`, `coversChanged`. Privacy draft line added.
-**Fixed by review (~60 findings, every fix re-reviewed):** e.g. hidden characters could fake the args dialog; dialogs closed themselves in dev (StrictMode); a locked list file looped icon rewrites.
-**Verified (Linux container, headless Electron + CDP):** search, stars, manual launch with args, menu/dialog keyboard paths, icons. Steam is blocked by this container's proxy.
-**Next:** Step 4b, then the Windows test (args dialog, path with spaces, .lnk refused, admin-only and console exes).
-**Blocked by:** nothing. Open: admin-only exe error code (EACCES expected); console exes have no window; icons are 32 px; older items below.
+**Blocked by:** nothing. Open: the stale icon after Change .exe and the sync's unlistable-folder read were both fixed on 2026-10-17.

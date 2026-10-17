@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import DisconnectSteamDialog from './DisconnectSteamDialog'
 import EpicCoverKeyForm from './EpicCoverKeyForm'
 import type { EpicLibrary } from './use-epic-library'
 import type { SteamLibrary } from './use-steam-library'
@@ -22,6 +23,29 @@ function SettingsScreen({ steam, epic, focusHeading }: SettingsScreenProps): Rea
     if (focusHeading) headingRef.current?.focus()
   }, [focusHeading])
   const { connection, connecting, connectError, apiKeyError, savingApiKey } = steam
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
+  // Where focus goes once the dialog has closed: the Disconnect button while
+  // still connected, else the Connect button that took the row's place.
+  // Set just before the dialog closes; used once it has.
+  const focusAfterDialogRef = useRef<'disconnect' | 'connect' | null>(null)
+  const disconnectButtonRef = useRef<HTMLButtonElement>(null)
+  const connectButtonRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (confirmingDisconnect || focusAfterDialogRef.current === null) return
+    const target =
+      focusAfterDialogRef.current === 'disconnect' ? disconnectButtonRef : connectButtonRef
+    focusAfterDialogRef.current = null
+    target.current?.focus()
+  }, [confirmingDisconnect])
+
+  const handleDisconnect = (): void => {
+    void steam.disconnect().then((outcome) => {
+      // A click while one is running did nothing: the dialog stays for it.
+      if (outcome === 'busy') return
+      focusAfterDialogRef.current = outcome === 'done' ? 'connect' : 'disconnect'
+      setConfirmingDisconnect(false)
+    })
+  }
 
   const handleSaveApiKey = (event: React.FormEvent): void => {
     event.preventDefault()
@@ -57,16 +81,43 @@ function SettingsScreen({ steam, epic, focusHeading }: SettingsScreenProps): Rea
               Cancel
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={steam.connect}
-              className="rounded-control bg-accent px-3 py-1 text-sm font-medium transition-colors hover:bg-accent-hover"
-            >
-              {connection?.status === 'connected' ? 'Reconnect Steam' : 'Connect Steam'}
-            </button>
+            <div className="flex flex-wrap gap-1">
+              <button
+                ref={connectButtonRef}
+                type="button"
+                onClick={() => {
+                  if (!steam.disconnecting) steam.connect()
+                }}
+                aria-disabled={steam.disconnecting}
+                className="rounded-control bg-accent px-3 py-1 text-sm font-medium transition-colors hover:bg-accent-hover aria-disabled:opacity-50"
+              >
+                {connection?.status === 'connected' ? 'Reconnect Steam' : 'Connect Steam'}
+              </button>
+              {connection?.status === 'connected' && (
+                <button
+                  ref={disconnectButtonRef}
+                  type="button"
+                  onClick={() => setConfirmingDisconnect(true)}
+                  className="rounded-control border border-border px-3 py-1 text-sm font-medium transition-colors hover:bg-surface-2"
+                >
+                  Disconnect
+                </button>
+              )}
+            </div>
           )}
         </div>
         {connectError !== null && <p className="text-danger">{connectError}</p>}
+        {steam.disconnectError !== null && <p className="text-danger">{steam.disconnectError}</p>}
+        {confirmingDisconnect && (
+          <DisconnectSteamDialog
+            busy={steam.disconnecting}
+            onDisconnect={handleDisconnect}
+            onCancel={() => {
+              focusAfterDialogRef.current = 'disconnect'
+              setConfirmingDisconnect(false)
+            }}
+          />
+        )}
 
         <div className="flex flex-col gap-2 rounded-card border border-border bg-surface px-4 py-3">
           <span className="text-muted">

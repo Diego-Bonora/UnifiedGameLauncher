@@ -4,6 +4,13 @@ import { describe, expect, it, vi } from 'vitest'
 // nothing below touches the disk, but the import itself must still resolve.
 vi.mock('electron', () => ({ app: { getPath: () => '/nonexistent' } }))
 
+// Only the folder listing is faked, to make it fail in chosen ways.
+const readdirMock = vi.hoisted(() => vi.fn<() => Promise<string[]>>())
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:fs/promises')>()),
+  readdir: readdirMock
+}))
+
 import { EPIC_COVER_URL_PREFIX } from '@shared/ipc/epic-channels'
 import { COVER_URL_PREFIX } from '@shared/ipc/steam-channels'
 import {
@@ -13,6 +20,7 @@ import {
   findCoverFileName,
   isAnimatedImage,
   isValidCoverId,
+  listCoverFilesIn,
   parseCoverRequest,
   readBodyWithLimit
 } from './cover-files'
@@ -264,5 +272,22 @@ describe('parseCoverRequest', () => {
     ['garbage', 'not a url']
   ])('returns null for %s', (_label, url) => {
     expect(parseCoverRequest(url)).toBeNull()
+  })
+})
+
+describe('listCoverFilesIn', () => {
+  it('lists the folder', async () => {
+    readdirMock.mockResolvedValueOnce(['10.jpg'])
+    await expect(listCoverFilesIn('steam')).resolves.toEqual(['10.jpg'])
+  })
+
+  it('reads a folder that does not exist yet as "no covers"', async () => {
+    readdirMock.mockRejectedValueOnce(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+    await expect(listCoverFilesIn('steam')).resolves.toEqual([])
+  })
+
+  it("rejects when the folder exists but can't be listed, rather than claiming no covers", async () => {
+    readdirMock.mockRejectedValueOnce(Object.assign(new Error('locked'), { code: 'EBUSY' }))
+    await expect(listCoverFilesIn('epic')).rejects.toThrow('locked')
   })
 })

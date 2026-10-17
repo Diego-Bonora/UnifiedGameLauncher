@@ -59,10 +59,16 @@ const realDeps: InstalledCoverDeps = {
 // the installed list has been read once.
 let seenInstalled: Set<string> | null = null
 
+// The latest installed read alone, for disconnect: "installed right now"
+// (docs/features/release.md), so a game uninstalled earlier this session
+// loses its cover. null until the first read.
+let latestInstalled: Set<string> | null = null
+
 // Called on every installed-list read.
 export function noteInstalledSteamGames(appIds: string[]): void {
   seenInstalled ??= new Set()
   for (const appId of appIds) seenInstalled.add(appId)
+  latestInstalled = new Set(appIds)
 }
 
 // After a lookup request fails (offline, Steam erroring), wait this long
@@ -283,25 +289,55 @@ export function syncInstalledCovers(
 
 // For disconnect: stops any running or queued downloads, waits for them to
 // wind down (they abort immediately, so this is quick), then deletes every
-// cached cover. Throws if a file could not be removed, so the caller doesn't
-// tell the user their data is gone when it isn't.
+// cached cover except those of games in the latest installed read: installed
+// games stay in the library without an account (docs/features/release.md,
+// "Disconnect Steam"), and the owned list's covers are the account's data.
+// A game on a drive that is asleep right now loses its cover too. Before the
+// installed list has been read once, nothing counts as installed and every
+// cover goes. The installed sync looks up any deleted one again. Throws if
+// the folder can't be listed or a file could not be removed, so the caller
+// doesn't tell the user their data is gone when it isn't.
 export async function clearCovers(deps: CoverCacheDeps = realDeps): Promise<void> {
   clearGeneration++
   activeAbort?.abort()
   await queueTail
-  // Every cover is about to go, so installed games must be looked up again.
-  installedLookedUp.clear()
+  // A lookup that failed before the disconnect may be tried again at once.
   lookupFailedAt = null
-  // Back to "installed list not read yet": no cleanup can run while
-  // disconnected, and the next read fills this in again.
-  seenInstalled = null
 
-  const files = await deps.listFiles()
+  const installed = latestInstalled ?? new Set<string>()
+  // Their covers are about to go, so they may be looked up again.
+  for (const appId of installedLookedUp) if (!installed.has(appId)) installedLookedUp.delete(appId)
+  const keep = new Set(
+    [...installed].flatMap((appId) => COVER_EXTENSIONS.map((ext) => `${appId}.${ext}`))
+  )
+  const files = (await deps.listFiles()).filter((name) => !keep.has(name))
   const results = await Promise.allSettled(files.map((name) => deps.deleteFile(name)))
   const failed = results.filter((result) => result.status === 'rejected')
   if (failed.length > 0) {
     console.warn(`[steam] could not remove ${failed.length} cached cover file(s)`)
     throw new Error('Could not remove all saved cover images.')
+  }
+}
+
+// For tests: back to a fresh session (nothing seen installed or looked up).
+export async function resetSteamCoverSessionForTests(): Promise<void> {
+  clearGeneration++
+  activeAbort?.abort()
+  await queueTail
+  seenInstalled = null
+  latestInstalled = null
+  installedLookedUp.clear()
+  lookupFailedAt = null
+}
+
+// For the URL helpers below: a folder that can't be listed must not fail a
+// library read, and must not read as "no covers" either.
+async function listFilesOrNull(deps: CoverCacheDeps): Promise<Set<string> | null> {
+  try {
+    return new Set(await deps.listFiles())
+  } catch (err) {
+    console.warn('[steam] could not read the covers folder:', err)
+    return null
   }
 }
 
@@ -312,7 +348,10 @@ export async function localSteamCoverUrls(
   appIds: string[],
   deps: CoverCacheDeps = realDeps
 ): Promise<Map<string, string>> {
-  const files = new Set(await deps.listFiles())
+  const files = await listFilesOrNull(deps)
+  // Can't tell which covers are on disk: none is claimed. The window keeps
+  // what it already shows (it never downgrades a cover).
+  if (files === null) return new Map()
   return new Map(
     appIds.flatMap((appId) =>
       findCoverFileName(appId, files) !== null ? [[appId, `${COVER_URL_PREFIX}${appId}`]] : []
@@ -327,7 +366,9 @@ export async function withLocalCoverUrls(
   games: SteamOwnedGame[],
   deps: CoverCacheDeps = realDeps
 ): Promise<SteamOwnedGame[]> {
-  const files = new Set(await deps.listFiles())
+  const files = await listFilesOrNull(deps)
+  // Can't tell which covers are on disk: every game keeps its remote URL.
+  if (files === null) return games
   return games.map((game) =>
     findCoverFileName(game.appId, files) !== null
       ? { ...game, coverUrl: `${COVER_URL_PREFIX}${game.appId}` }

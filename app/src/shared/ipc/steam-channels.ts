@@ -114,3 +114,27 @@ export type SteamHandOffResult =
 export type SteamConnectionStatus =
   | { status: 'connected'; steamId64: string; hasApiKey: boolean }
   | { status: 'disconnected'; steamId64: null; hasApiKey: boolean }
+
+// Returned as data, never thrown (Electron would prefix a thrown message).
+// `connection` is always what is saved now: a cancelled or failed sign-in
+// leaves the previous connection as it was.
+//  - verifyFailed: Steam's answer couldn't be confirmed with Steam
+//  - cannotSave: confirmed, but the connection couldn't be saved on this PC
+export interface SteamConnectResult {
+  connection: SteamConnectionStatus
+  problem: 'verifyFailed' | 'cannotSave' | null
+}
+
+// `connection` is what is saved now. removeFailed: some of the account's data
+// couldn't be deleted, so the user stays connected and can try again.
+export interface SteamDisconnectResult {
+  connection: SteamConnectionStatus
+  problem: 'removeFailed' | null
+}
+
+// Same shape as Epic's key result.
+//  - invalidKey: not the shape of a Steam Web API key (32 hex characters)
+//  - cannotStore: this PC can't encrypt or save secrets right now
+export type SteamSetApiKeyResult =
+  | { saved: true; connection: SteamConnectionStatus }
+  | { saved: false; reason: 'invalidKey' | 'cannotStore' }

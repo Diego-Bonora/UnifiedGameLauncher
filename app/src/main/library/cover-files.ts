@@ -57,12 +57,17 @@ export function coverDirPath(store: CoverStore): string {
   return join(app.getPath('userData'), STORES[store].folder)
 }
 
+// Rejects when the folder exists but can't be listed (locked, no access):
+// read as "no covers", that would make a sync download every cover again and
+// a disconnect report files deleted that are still there. Each caller decides
+// what "unknown" means for it.
 export async function listCoverFilesIn(store: CoverStore): Promise<string[]> {
   try {
     return await readdir(coverDirPath(store))
-  } catch {
+  } catch (err) {
     // Folder not created yet (first run) means "no covers cached".
-    return []
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw err
   }
 }
 

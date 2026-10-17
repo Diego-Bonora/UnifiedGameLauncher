@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron'
+import { shell } from 'electron'
 import { STEAM_CHANNELS } from '@shared/ipc/steam'
 import {
   localSteamCoverUrls,
@@ -6,6 +6,7 @@ import {
   syncInstalledCovers
 } from '../library/cover-cache'
 import { scanSteamInstall, steamProvider } from '../stores/steam'
+import { handleFromApp } from './app-handle'
 import { notifyAllWindows } from './notify-windows'
 import {
   handOffToSteam,
@@ -27,15 +28,15 @@ const installedCovers: SteamInstalledCovers = {
 }
 
 export function registerSteamIpc(): void {
-  ipcMain.handle(STEAM_CHANNELS.getInstalledGames, () =>
+  handleFromApp(STEAM_CHANNELS.getInstalledGames, () =>
     listSteamInstalledGames(scanSteamInstall, installedCovers)
   )
 
-  ipcMain.handle(STEAM_CHANNELS.launch, (_event, rawRequest: unknown) =>
+  handleFromApp(STEAM_CHANNELS.launch, (_event, rawRequest: unknown) =>
     handOffToSteam('launch', steamProvider, rawRequest, (url) => shell.openExternal(url))
   )
 
-  ipcMain.handle(STEAM_CHANNELS.install, (_event, rawRequest: unknown) =>
+  handleFromApp(STEAM_CHANNELS.install, (_event, rawRequest: unknown) =>
     handOffToSteam('install', steamProvider, rawRequest, (url) => shell.openExternal(url))
   )
 }

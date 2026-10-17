@@ -16,6 +16,9 @@ vi.mock('electron', () => ({
   }
 }))
 
+// Read by the sender check; the tests act as the packaged app's page.
+vi.mock('@electron-toolkit/utils', () => ({ is: { dev: false } }))
+
 vi.mock('../stores/steam/openid', () => ({
   openSteamSignInInBrowser: vi.fn(),
   cancelSteamSignIn: vi.fn()
@@ -52,8 +55,13 @@ vi.mock('../library/library-cache', () => ({
 import { STEAM_CHANNELS } from '@shared/ipc/steam'
 import { registerSteamAuthIpc } from './steam-auth'
 import { getOwnedSteamGames, SteamApiError } from '../stores/steam/owned-games'
-import { clearSteamConnection, getSteamConnection } from '../storage/connection-store'
-import { clearSecret, getSecret } from '../storage/secret-store'
+import { openSteamSignInInBrowser } from '../stores/steam/openid'
+import {
+  clearSteamConnection,
+  getSteamConnection,
+  setSteamConnection
+} from '../storage/connection-store'
+import { clearSecret, getSecret, setSecret } from '../storage/secret-store'
 import { clearCovers, syncCovers, withLocalCoverUrls } from '../library/cover-cache'
 import {
   clearCachedSteamLibrary,
@@ -66,10 +74,21 @@ const GAMES = [{ appId: '10', title: 'Counter-Strike', coverUrl: null }]
 
 const live = (games: unknown): unknown => ({ source: 'live', games, problem: null })
 
-function invoke(channel: string): Promise<unknown> {
+// What a call from the app's own page looks like: its top-level frame, on
+// the bundled file.
+const appFrame = {
+  url: 'file:///C:/Program%20Files/App/resources/app.asar/out/renderer/index.html'
+}
+const APP_EVENT = { senderFrame: appFrame, sender: { mainFrame: appFrame } }
+
+async function invoke(
+  channel: string,
+  payload?: unknown,
+  event: unknown = APP_EVENT
+): Promise<unknown> {
   const handler = handlers.get(channel)
   if (handler === undefined) throw new Error(`no handler registered for ${channel}`)
-  return handler({})
+  return handler(event, payload)
 }
 
 beforeEach(() => {
@@ -509,41 +528,242 @@ describe('steam:getCachedLibrary', () => {
 })
 
 describe('steam:disconnect', () => {
-  it('clears the saved library along with the connection', async () => {
+  const disconnected = { status: 'disconnected', steamId64: null, hasApiKey: false }
+
+  beforeEach(() => {
     vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
     vi.mocked(getSecret).mockResolvedValue(null)
-
-    await invoke(STEAM_CHANNELS.disconnect)
-
-    expect(clearSteamConnection).toHaveBeenCalledOnce()
-    expect(clearCachedSteamLibrary).toHaveBeenCalledOnce()
   })
 
-  it('clears the cached cover images too', async () => {
-    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
-    vi.mocked(getSecret).mockResolvedValue(null)
+  it('deletes the saved library and covers first, then the connection', async () => {
+    const order: string[] = []
+    vi.mocked(clearCachedSteamLibrary).mockImplementation(async () => void order.push('library'))
+    vi.mocked(clearCovers).mockImplementation(async () => void order.push('covers'))
+    vi.mocked(clearSteamConnection).mockImplementation(async () => void order.push('connection'))
 
-    await invoke(STEAM_CHANNELS.disconnect)
-
-    expect(clearCovers).toHaveBeenCalledOnce()
+    expect(await invoke(STEAM_CHANNELS.disconnect)).toEqual({
+      connection: disconnected,
+      problem: null
+    })
+    expect(order).toEqual(['library', 'covers', 'connection'])
   })
 
-  it('reports a failure to remove the covers instead of pretending they are gone', async () => {
-    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
-    vi.mocked(getSecret).mockResolvedValue(null)
+  it('stays connected and says so when the covers could not all be removed', async () => {
     vi.mocked(clearCovers).mockRejectedValue(new Error('Could not remove all saved cover images.'))
+    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'connected', steamId64: STEAM_ID })
 
-    await expect(invoke(STEAM_CHANNELS.disconnect)).rejects.toThrow(
-      'Could not remove all saved cover images.'
-    )
+    expect(await invoke(STEAM_CHANNELS.disconnect)).toEqual({
+      connection: { status: 'connected', steamId64: STEAM_ID, hasApiKey: false },
+      problem: 'removeFailed'
+    })
+    expect(clearSteamConnection).not.toHaveBeenCalled()
+  })
+
+  it('stays connected when the saved library could not be removed', async () => {
+    vi.mocked(clearCachedSteamLibrary).mockRejectedValue(new Error('EPERM'))
+
+    expect(await invoke(STEAM_CHANNELS.disconnect)).toMatchObject({ problem: 'removeFailed' })
+    expect(clearSteamConnection).not.toHaveBeenCalled()
   })
 
   it('does not delete the saved API key', async () => {
-    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
     vi.mocked(getSecret).mockResolvedValue('a'.repeat(32))
 
     await invoke(STEAM_CHANNELS.disconnect)
 
     expect(clearSecret).not.toHaveBeenCalled()
+  })
+
+  it('a library read already running saves nothing and starts no covers once Steam answers', async () => {
+    connectedWithKey()
+    let answer: (games: typeof GAMES) => void = () => undefined
+    vi.mocked(getOwnedSteamGames).mockReturnValue(new Promise((resolve) => (answer = resolve)))
+    const reading = invoke(STEAM_CHANNELS.getOwnedGames)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    await invoke(STEAM_CHANNELS.disconnect)
+    answer(GAMES)
+    await reading
+
+    expect(setCachedSteamLibrary).not.toHaveBeenCalled()
+    expect(syncCovers).not.toHaveBeenCalled()
+  })
+
+  it('a read still checking the connection when Disconnect lands saves nothing', async () => {
+    connectedWithKey()
+    vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
+    // The key read (safeStorage, a file) is still running when Disconnect
+    // starts, so the read sees "connected": the connection goes last.
+    let keyRead: (key: string) => void = () => undefined
+    vi.mocked(getSecret).mockReturnValueOnce(new Promise((resolve) => (keyRead = resolve)))
+    const reading = invoke(STEAM_CHANNELS.getOwnedGames)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const disconnecting = invoke(STEAM_CHANNELS.disconnect)
+    keyRead('a'.repeat(32))
+    await Promise.all([reading, disconnecting])
+
+    expect(getOwnedSteamGames).not.toHaveBeenCalled()
+    expect(setCachedSteamLibrary).not.toHaveBeenCalled()
+    expect(syncCovers).not.toHaveBeenCalled()
+  })
+
+  it('a read waiting on one disconnect also waits out a second that starts meanwhile', async () => {
+    // Connected until a disconnect really clears the connection.
+    let connected = true
+    vi.mocked(getSteamConnection).mockImplementation(async () =>
+      connected
+        ? { status: 'connected', steamId64: STEAM_ID }
+        : { status: 'disconnected', steamId64: null }
+    )
+    vi.mocked(getSecret).mockResolvedValue('a'.repeat(32))
+    vi.mocked(getOwnedSteamGames).mockResolvedValue(GAMES)
+    // The first disconnect fails (stays connected); the second is held.
+    let finishFirst: () => void = () => undefined
+    let finishSecond: () => void = () => undefined
+    vi.mocked(clearCachedSteamLibrary)
+      .mockReturnValueOnce(
+        new Promise<void>((_resolve, reject) => (finishFirst = () => reject(new Error('EPERM'))))
+      )
+      .mockReturnValueOnce(new Promise<void>((resolve) => (finishSecond = resolve)))
+    vi.mocked(clearSteamConnection).mockImplementation(async () => {
+      connected = false
+    })
+    const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+
+    const first = invoke(STEAM_CHANNELS.disconnect)
+    const reading = invoke(STEAM_CHANNELS.getOwnedGames).catch(() => undefined)
+    await tick()
+    const second = invoke(STEAM_CHANNELS.disconnect)
+    finishFirst()
+    await first
+    await tick()
+    // Still waiting on the second disconnect: nothing read or saved yet.
+    expect(getOwnedSteamGames).not.toHaveBeenCalled()
+
+    finishSecond()
+    await Promise.all([second, reading])
+    expect(setCachedSteamLibrary).not.toHaveBeenCalled()
+    expect(syncCovers).not.toHaveBeenCalled()
+  })
+
+  it('a library read during the disconnect waits for it and sees the result', async () => {
+    // Connected until the disconnect really clears the connection.
+    let connected = true
+    vi.mocked(getSteamConnection).mockImplementation(async () =>
+      connected
+        ? { status: 'connected', steamId64: STEAM_ID }
+        : { status: 'disconnected', steamId64: null }
+    )
+    vi.mocked(clearSteamConnection).mockImplementation(async () => {
+      connected = false
+    })
+    vi.mocked(getCachedSteamLibrary).mockResolvedValue(GAMES)
+    let finish: () => void = () => undefined
+    vi.mocked(clearCachedSteamLibrary).mockReturnValue(
+      new Promise<void>((resolve) => (finish = resolve))
+    )
+    const disconnecting = invoke(STEAM_CHANNELS.disconnect)
+    const reading = invoke(STEAM_CHANNELS.getCachedLibrary)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(getCachedSteamLibrary).not.toHaveBeenCalled()
+
+    finish()
+    await disconnecting
+    // Disconnected by then: nothing is read or returned.
+    expect(await reading).toBeNull()
+    expect(getCachedSteamLibrary).not.toHaveBeenCalled()
+  })
+})
+
+describe('steam:signIn', () => {
+  const connected = { status: 'connected', steamId64: STEAM_ID, hasApiKey: false }
+  const disconnected = { status: 'disconnected', steamId64: null, hasApiKey: false }
+
+  beforeEach(() => {
+    vi.mocked(getSecret).mockResolvedValue(null)
+  })
+
+  it('saves the Steam ID and returns the new connection', async () => {
+    vi.mocked(openSteamSignInInBrowser).mockResolvedValue({ steamId64: STEAM_ID })
+    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'connected', steamId64: STEAM_ID })
+
+    expect(await invoke(STEAM_CHANNELS.signIn)).toEqual({ connection: connected, problem: null })
+    expect(setSteamConnection).toHaveBeenCalledWith({ status: 'connected', steamId64: STEAM_ID })
+  })
+
+  it('returns a failed verification as data, keeping what was saved', async () => {
+    vi.mocked(openSteamSignInInBrowser).mockResolvedValue({ failed: true })
+    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
+
+    expect(await invoke(STEAM_CHANNELS.signIn)).toEqual({
+      connection: disconnected,
+      problem: 'verifyFailed'
+    })
+    expect(setSteamConnection).not.toHaveBeenCalled()
+  })
+
+  it('returns a connection that could not be saved as data', async () => {
+    vi.mocked(openSteamSignInInBrowser).mockResolvedValue({ steamId64: STEAM_ID })
+    vi.mocked(setSteamConnection).mockRejectedValue(new Error('EPERM'))
+    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
+
+    expect(await invoke(STEAM_CHANNELS.signIn)).toEqual({
+      connection: disconnected,
+      problem: 'cannotSave'
+    })
+  })
+
+  it('a cancelled sign-in is no problem and changes nothing', async () => {
+    vi.mocked(openSteamSignInInBrowser).mockResolvedValue({ cancelled: true })
+    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
+
+    expect(await invoke(STEAM_CHANNELS.signIn)).toEqual({ connection: disconnected, problem: null })
+    expect(setSteamConnection).not.toHaveBeenCalled()
+  })
+})
+
+describe('steam:setApiKey', () => {
+  beforeEach(() => {
+    vi.mocked(getSteamConnection).mockResolvedValue({ status: 'disconnected', steamId64: null })
+  })
+
+  it('saves a well-formed key (trimmed) and returns the connection', async () => {
+    vi.mocked(getSecret).mockResolvedValue('a'.repeat(32))
+
+    expect(await invoke(STEAM_CHANNELS.setApiKey, { apiKey: ` ${'a'.repeat(32)} ` })).toEqual({
+      saved: true,
+      connection: { status: 'disconnected', steamId64: null, hasApiKey: true }
+    })
+    expect(setSecret).toHaveBeenCalledWith('steamApiKey', 'a'.repeat(32))
+  })
+
+  it('returns a malformed key as data and saves nothing', async () => {
+    expect(await invoke(STEAM_CHANNELS.setApiKey, { apiKey: 'not a key' })).toEqual({
+      saved: false,
+      reason: 'invalidKey'
+    })
+    expect(setSecret).not.toHaveBeenCalled()
+  })
+
+  it('returns a key that could not be stored as data', async () => {
+    vi.mocked(setSecret).mockRejectedValue(new Error('This computer cannot securely store secrets'))
+
+    expect(await invoke(STEAM_CHANNELS.setApiKey, { apiKey: 'a'.repeat(32) })).toEqual({
+      saved: false,
+      reason: 'cannotStore'
+    })
+  })
+})
+
+describe('callers other than the app page', () => {
+  it('are refused, and nothing is deleted', async () => {
+    const page = { url: 'https://evil.test/' }
+    const foreign = { senderFrame: page, sender: { mainFrame: page } }
+
+    await expect(invoke(STEAM_CHANNELS.disconnect, undefined, foreign)).rejects.toThrow('Refused')
+    expect(clearCachedSteamLibrary).not.toHaveBeenCalled()
+    expect(clearCovers).not.toHaveBeenCalled()
+    expect(clearSteamConnection).not.toHaveBeenCalled()
   })
 })

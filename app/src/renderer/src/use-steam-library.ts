@@ -14,6 +14,12 @@ import {
   type LibraryNotice
 } from './library-problems'
 import { mergeFreshCovers } from './library-view'
+import {
+  apiKeyProblemText,
+  disconnectProblemText,
+  LIBRARY_LOAD_FAILED_TEXT,
+  signInProblemText
+} from './steam-messages'
 import { nextSteamInstalled } from './steam-installed'
 
 // Tagged with the steamId64 it was fetched for, so a render can tell a
@@ -54,6 +60,10 @@ export interface SteamLibrary {
   connectError: string | null
   connect: () => void
   cancelConnect: () => void
+  disconnecting: boolean
+  disconnectError: string | null
+  // 'busy': one is already running, and this call did nothing.
+  disconnect: () => Promise<'done' | 'failed' | 'busy'>
 
   savingApiKey: boolean
   apiKeyError: string | null
@@ -83,6 +93,10 @@ export function useSteamLibrary(): SteamLibrary {
   const [connectionLoaded, setConnectionLoaded] = useState(false)
   const [connectError, setConnectError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [disconnectError, setDisconnectError] = useState<string | null>(null)
+  // A second click while the first is running must not start another.
+  const disconnectingRef = useRef(false)
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [savingApiKey, setSavingApiKey] = useState(false)
   const [ownedGamesResult, setOwnedGamesResult] = useState<OwnedGamesResult | null>(null)
@@ -123,12 +137,17 @@ export function useSteamLibrary(): SteamLibrary {
 
   const connect = useCallback(() => {
     setConnectError(null)
+    // An old "couldn't remove your data" line no longer applies.
+    setDisconnectError(null)
     setConnecting(true)
     window.api.steam
       .signIn()
-      .then(setConnection)
+      .then(({ connection, problem }) => {
+        setConnection(connection)
+        if (problem !== null) setConnectError(signInProblemText(problem))
+      })
       .catch(() => {
-        setConnectError('Could not connect to Steam. Please try again.')
+        setConnectError(signInProblemText('failed'))
       })
       .finally(() => setConnecting(false))
   }, [])
@@ -136,6 +155,37 @@ export function useSteamLibrary(): SteamLibrary {
   const cancelConnect = useCallback(() => {
     void window.api.steam.cancelSignIn()
   }, [])
+
+  const disconnect = useCallback(async (): Promise<'done' | 'failed' | 'busy'> => {
+    if (disconnectingRef.current) return 'busy'
+    disconnectingRef.current = true
+    setDisconnectError(null)
+    setDisconnecting(true)
+    try {
+      const { connection: status, problem } = await window.api.steam.disconnect()
+      setConnection(status)
+      if (problem !== null) {
+        setDisconnectError(disconnectProblemText(problem))
+        // A read that main dropped while disconnecting may have left a
+        // "Steam isn't responding" behind; read the library again.
+        refreshOwned()
+        return 'failed'
+      }
+      // The old account's lists go from memory too, not only from the view.
+      setOwnedGamesResult(null)
+      setCachedLibrary(null)
+      setConnectError(null)
+      return 'done'
+    } catch {
+      setDisconnectError(disconnectProblemText('failed'))
+      // Same as a removeFailed answer: main may have dropped a read meanwhile.
+      refreshOwned()
+      return 'failed'
+    } finally {
+      disconnectingRef.current = false
+      setDisconnecting(false)
+    }
+  }, [refreshOwned])
 
   const saveApiKey = useCallback(
     async (apiKey: string): Promise<boolean> => {
@@ -146,19 +196,20 @@ export function useSteamLibrary(): SteamLibrary {
       setApiKeyError(null)
       setSavingApiKey(true)
       try {
-        const status = await window.api.steam.setApiKey(apiKey)
-        setConnection(status)
+        const result = await window.api.steam.setApiKey(apiKey)
+        if (!result.saved) {
+          setApiKeyError(apiKeyProblemText(result.reason))
+          return false
+        }
+        setConnection(result.connection)
         // A new key deserves a fresh attempt now, and must not sit under the
         // previous key's "turned down" notice while it loads. Neither changes
         // the effect's other dependencies when the key is merely replaced.
         setOwnedGamesResult(null)
         refreshOwned()
         return true
-      } catch (err: unknown) {
-        // The main-process handler already produces a friendly message for
-        // both a malformed key and an encryption failure; surface it as-is
-        // rather than a second, generic one.
-        setApiKeyError(err instanceof Error ? err.message : 'Could not save the API key.')
+      } catch {
+        setApiKeyError(apiKeyProblemText('failed'))
         return false
       } finally {
         savingApiKeyRef.current = false
@@ -178,7 +229,7 @@ export function useSteamLibrary(): SteamLibrary {
         setOwnedGamesResult(null)
       })
       .catch(() => {
-        setApiKeyError('Could not remove the saved API key.')
+        setApiKeyError(apiKeyProblemText('removeFailed'))
       })
   }, [])
 
@@ -231,9 +282,10 @@ export function useSteamLibrary(): SteamLibrary {
           }
         })
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (ignore) return
-        const error = err instanceof Error ? err.message : 'Could not load your Steam library.'
+        // Only a caller bug rejects here, so its message is never shown.
+        const error = LIBRARY_LOAD_FAILED_TEXT
         setOwnedGamesResult((previous) => {
           const kept = previous !== null && previous.steamId64 === steamId64 ? previous : null
           return {
@@ -358,6 +410,9 @@ export function useSteamLibrary(): SteamLibrary {
     connectError,
     connect,
     cancelConnect,
+    disconnecting,
+    disconnectError,
+    disconnect,
     savingApiKey,
     apiKeyError,
     saveApiKey,

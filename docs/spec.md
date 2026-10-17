@@ -18,9 +18,9 @@ One local user per Windows account. There are no roles or permissions tiers. Sto
 - Library cache and offline mode
 - Manual games (pick an .exe): a "Manual" store in the sidebar; rename, launch arguments, change .exe, remove; a per-game cover choice: Steam cover (by exact title, falling back to the exe's icon) or Exe icon. See @docs/features/library-tools.md
 - Search by name in every game view, and a favorite star that puts a game in a "★ Favorites" group at the top of its section, above "All" ("sort by store" = the per-store sidebar views). See @docs/features/library-tools.md
-- In-app privacy policy
+- In-app privacy policy and About (version, license, not-affiliated note) at the bottom of Settings. See @docs/features/release.md
 - Windows installer distributed through GitHub Releases
-- Auto-updates via electron-updater + GitHub Releases (Milestone 7; works with an unsigned installer)
+- Auto-updates via electron-updater + GitHub Releases (Milestone 7; works with an unsigned installer): asks before downloading, switch in Settings on by default. MIT license. See @docs/features/release.md
 
 ## Out of Scope (v1)
 - GOG, Ubisoft Connect, Battle.net, EA app, and Xbox app games (planned for v2; Xbox: installed detection, launch through Windows, store covers; draft spec in @docs/features/xbox-store.md)
@@ -36,7 +36,7 @@ One local user per Windows account. There are no roles or permissions tiers. Sto
 ## Data Model
 - `Game { id, store, storeGameId, title, coverPath, installed, installPath?, favorite, lastPlayed? }`
 - `StoreConnection { store, status }` (Steam: public Steam ID; no store tokens are stored today)
-- `Settings`
+- `Settings { checkForUpdates }` (`settings.json`, default on)
 - Favorites: a set of card keys `<store>:<id>` (`favorites.json`)
 - `ManualGame { id, title, exePath, args, coverSource: 'steam' | 'icon', steamAppId?, coverMissTitle?, iconFor? }` (`manual-games.json`; `id` is a UUID made by main)
 - Epic cover state per `AppName`: `{ lastSeenInstalled, noCoverCheckedAt? }` (prunes covers after 30 days unseen; re-asks SteamGridDB about misses after 7 days). See @docs/features/epic-covers.md

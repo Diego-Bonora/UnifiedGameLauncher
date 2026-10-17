@@ -188,6 +188,57 @@ describe('manual covers: icons and housekeeping', () => {
     expect(readIcon).toHaveBeenCalledTimes(2)
   })
 
+  it('drops the old exe’s icon after Change .exe to an exe without one', async () => {
+    const readIcon = vi.fn(async (exePath: string) => (exePath.startsWith('D:') ? null : PNG))
+    const s = setup([game(A, 'Doom', { coverSource: 'icon' })], undefined, { readIcon })
+    await sync(s)
+    expect(s.files.has(`${A}-icon.png`)).toBe(true)
+    s.setGames([{ ...s.saved()[0]!, exePath: 'D:\\Doom\\doom.exe' }])
+    s.notify.mockClear()
+    await sync(s)
+    expect(s.files.has(`${A}-icon.png`)).toBe(false)
+    expect(s.notify).toHaveBeenCalledTimes(1)
+    expect((await s.covers.urls(s.saved())).get(A)?.iconUrl).toBeNull()
+    // Tried once: no new read or notice on the next sync.
+    await sync(s)
+    expect(readIcon).toHaveBeenCalledTimes(2)
+    expect(s.notify).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops the old exe’s icon after Change .exe to an exe that is missing right now', async () => {
+    const s = setup([game(A, 'Doom', { coverSource: 'icon' })], undefined, {
+      exeExists: async (exePath) => !exePath.startsWith('D:')
+    })
+    await sync(s)
+    s.setGames([{ ...s.saved()[0]!, exePath: 'D:\\Doom\\doom.exe' }])
+    await sync(s)
+    expect(s.files.has(`${A}-icon.png`)).toBe(false)
+  })
+
+  it('keeps an icon whose exe is unknown (iconFor never saved) when no new icon is read', async () => {
+    const s = setup([game(A, 'Doom', { coverSource: 'icon' })], undefined, {
+      readIcon: async () => null
+    })
+    s.files.set(`${A}-icon.png`, PNG)
+    await sync(s)
+    expect(s.files.has(`${A}-icon.png`)).toBe(true)
+  })
+
+  it("does nothing at all when the folder exists but can't be listed", async () => {
+    const readIcon = vi.fn(async () => PNG)
+    const s = setup([game(A, 'Doom')], undefined, {
+      readIcon,
+      listFiles: async () => {
+        throw Object.assign(new Error('locked'), { code: 'EBUSY' })
+      }
+    })
+    await sync(s)
+    expect(readIcon).not.toHaveBeenCalled()
+    expect(s.search).not.toHaveBeenCalled()
+    expect(s.files.size).toBe(0)
+    expect(s.notify).not.toHaveBeenCalled()
+  })
+
   it('deletes files of games that are gone, and leaves other games alone', async () => {
     const s = setup([game(A, 'Doom', { coverSource: 'icon' })])
     s.files.set(`${GONE}-poster.jpg`, JPG)

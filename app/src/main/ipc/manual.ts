@@ -1,13 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { is } from '@electron-toolkit/utils'
-import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, dialog, type IpcMainInvokeEvent } from 'electron'
 import { MANUAL_CHANNELS } from '@shared/ipc/manual'
 import type { FavoritesStore } from '../storage/favorites-store'
 import { createManualProvider, type ManualGamesFile } from '../stores/manual'
 import { exeFileName, isExeFile, resolveExePath, suggestedTitle } from '../stores/manual/exe-path'
-import { isAppSender } from '../security/ipc-sender'
 import {
   coverDirPath,
   deleteCoverFile,
@@ -17,6 +15,7 @@ import {
 import { createManualCovers, type ManualCovers } from '../stores/manual/manual-covers'
 import { findSteamAppIdByTitle } from '../stores/manual/steam-title-search'
 import { isSteamCoverAssetUrl, lookUpLibraryCoverArt } from '../stores/steam/library-cover-art'
+import { handleFromApp } from './app-handle'
 import { createManualHandlers } from './manual-handlers'
 import { notifyAllWindows } from './notify-windows'
 
@@ -124,18 +123,8 @@ export function registerManualIpc(file: ManualGamesFile, favorites: FavoritesSto
     covers: createRealManualCovers(file)
   })
 
-  // These channels start programs: only the app's own page may call them
-  // (a caller bug or worse otherwise, so it throws).
-  const handle = (
-    channel: string,
-    run: (event: IpcMainInvokeEvent, raw: unknown) => unknown
-  ): void => {
-    ipcMain.handle(channel, (event, raw: unknown) => {
-      const devServerUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
-      if (!isAppSender(event, devServerUrl)) throw new Error('Refused: not the app page')
-      return run(event, raw)
-    })
-  }
+  // These channels start programs: only the app's own page may call them.
+  const handle = handleFromApp
 
   handle(MANUAL_CHANNELS.list, () => handlers.list())
   handle(MANUAL_CHANNELS.pickExe, (event) => handlers.pickExe(senderWindow(event)))

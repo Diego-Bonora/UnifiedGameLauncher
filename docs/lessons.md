@@ -10,6 +10,10 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-10-17 — A disconnect guard was taken after the await it had to cover
+**What happened:** To stop a Steam library read from saving data after Disconnect, `loadLibrary` captured a generation counter. Review found it was captured too late. The handler first awaited the running disconnect and then the connection and key read, and only then took the counter. Disconnect deletes the connection last, on purpose, so a read caught between those awaits saw "connected" with the already-bumped counter and wrote the library and covers back. The first fix also awaited `disconnecting` once, which misses a second disconnect starting during the wait. My first "read during disconnect" test passed with the wait removed, because its mock always answered "disconnected"; a mutation check caught it.
+**Rule going forward:** Read a guard counter before the first await that reads the state it protects, check it again after each await, and pass it down instead of re-reading it later. Waiting on a shared "current operation" promise must loop until that variable stops changing. Test a guard by holding each awaited dependency open in turn while the other operation runs, with mocks that change state the way the real code does, and mutation-check every guard.
+
 ## 2026-10-15 — PowerShell checks pasted as one block came back half empty
 **What happened:** To capture real Xbox samples I gave the user six read-only PowerShell commands in one block. The hex dump of `.GamingRoot` and the catalog's image list printed nothing: when several commands' outputs of different types share one pipeline display, PowerShell formats them as one table and drops what doesn't fit. A `-like "*Minecraft*"` filter also arrived without its asterisks. Each cost another round trip with the user.
 **Rule going forward:** Give PowerShell checks one command per code block, to run one at a time, and end each with `| Out-String` (or `| Format-List`) so its output always prints. Prefer filters without wildcards (`-match "4297127D64EC6"`) when the user will copy them.

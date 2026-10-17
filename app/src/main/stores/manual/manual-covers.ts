@@ -122,12 +122,17 @@ export function createManualCovers(deps: ManualCoverDeps): ManualCovers {
   let running: Promise<void> | null = null
   let again = false
 
-  async function listFiles(): Promise<CoverFileInfo[]> {
+  // null when the folder exists but can't be listed: the sync then does
+  // nothing, since every file would look missing and be read, searched and
+  // written again.
+  async function listFiles(): Promise<CoverFileInfo[] | null> {
     try {
       return await deps.listFiles()
-    } catch {
+    } catch (err) {
       // No folder yet (first run) means no covers.
-      return []
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+      console.warn('[manual] could not read the covers folder:', err)
+      return null
     }
   }
 
@@ -172,14 +177,22 @@ export function createManualCovers(deps: ManualCoverDeps): ManualCovers {
   }
 
   async function syncIcon(game: SavedManualGame, files: CoverFileInfo[]): Promise<boolean> {
-    const hasIcon = iconFileOf(game.id, files) !== undefined
-    if (hasIcon && game.iconFor === game.exePath) return false
+    const icon = iconFileOf(game.id, files)
+    if (icon !== undefined && game.iconFor === game.exePath) return false
     const key = titleKey(game.id, game.exePath)
     if (iconTried.has(key)) return false
     iconTried.add(key)
+    // No icon from this exe: an icon saved for another exe (Change .exe)
+    // isn't this one's and goes. An icon with no iconFor stays: its exe is
+    // unknown (saving iconFor may have failed), so it may well be this one's.
+    const dropOldIcon = async (): Promise<boolean> =>
+      icon !== undefined &&
+      game.iconFor !== undefined &&
+      game.iconFor !== game.exePath &&
+      (await deleteQuietly(icon.name))
     // A missing exe (drive asleep, moved) would give Windows' generic icon,
     // saved for good: "no icon this time" instead, tried on the next start.
-    if (!(await deps.exeExists(game.exePath))) return false
+    if (!(await deps.exeExists(game.exePath))) return dropOldIcon()
     let png: Uint8Array | null = null
     try {
       png = await deps.readIcon(game.exePath)
@@ -187,7 +200,7 @@ export function createManualCovers(deps: ManualCoverDeps): ManualCovers {
       console.warn('[manual] could not read an exe icon:', err)
     }
     // Checked by its bytes like every cached image.
-    if (png === null || detectImageExtension(png) !== 'png') return false
+    if (png === null || detectImageExtension(png) !== 'png') return dropOldIcon()
     const now = await current(game.id)
     if (now === null || now.exePath !== game.exePath) return false
     await deps.writeFile(`${game.id}-icon.png`, png)
@@ -264,6 +277,7 @@ export function createManualCovers(deps: ManualCoverDeps): ManualCovers {
     // Nothing is cleaned up or looked up from a list that couldn't be read.
     if (!read.readable) return
     let files = await listFiles()
+    if (files === null) return
     let changed = false
 
     // Files of games that are gone (a crash between Remove and its cleanup).
@@ -290,6 +304,7 @@ export function createManualCovers(deps: ManualCoverDeps): ManualCovers {
       }
     }
     if (changed) files = await listFiles()
+    if (files === null) return
 
     // Icons first: they are local and quick, so they show at once.
     for (const game of read.games) {
@@ -340,7 +355,10 @@ export function createManualCovers(deps: ManualCoverDeps): ManualCovers {
   }
 
   async function deleteWhere(id: string, kinds: ParsedFile['kind'][]): Promise<void> {
-    for (const file of await listFiles()) {
+    // A folder that can't be listed: nothing to delete now. The next sync's
+    // cleanup removes the files of a removed game, and a renamed game's old
+    // poster is never shown (hasValidPoster).
+    for (const file of (await listFiles()) ?? []) {
       const parsed = parseFileName(file.name)
       if (parsed?.id === id && kinds.includes(parsed.kind)) await deleteQuietly(file.name)
     }

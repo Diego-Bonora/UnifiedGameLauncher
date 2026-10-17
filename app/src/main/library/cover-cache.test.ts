@@ -9,6 +9,7 @@ import {
   clearCovers,
   localSteamCoverUrls,
   noteInstalledSteamGames,
+  resetSteamCoverSessionForTests,
   syncCovers,
   syncInstalledCovers,
   withLocalCoverUrls,
@@ -60,8 +61,7 @@ function fakeDeps(existing: string[] = []): FakeDeps {
 
 beforeEach(async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-  // Forgets the installed-cover session state between tests.
-  await clearCovers(fakeDeps())
+  await resetSteamCoverSessionForTests()
   // Most tests are about owned games alone: the installed list has been
   // read and is empty, so the owned sync's cleanup runs as it always did.
   noteInstalledSteamGames([])
@@ -280,7 +280,59 @@ describe('syncCovers: pruning', () => {
   })
 })
 
+describe("a covers folder that can't be listed", () => {
+  const locked = (): FakeDeps => {
+    const deps = fakeDeps(['10.jpg'])
+    deps.listFiles = async () => {
+      throw Object.assign(new Error('locked'), { code: 'EBUSY' })
+    }
+    return deps
+  }
+
+  it('the owned sync neither deletes nor downloads anything', async () => {
+    const deps = locked()
+    await expect(syncCovers([game('10'), game('20')], deps)).resolves.toBe(0)
+    expect(deps.deleted).toEqual([])
+    expect(deps.fetchImage).not.toHaveBeenCalled()
+  })
+
+  it('library reads keep the remote URLs and claim no local cover', async () => {
+    const deps = locked()
+    await expect(withLocalCoverUrls([game('10')], deps)).resolves.toEqual([game('10')])
+    await expect(localSteamCoverUrls(['10'], deps)).resolves.toEqual(new Map())
+  })
+
+  it('clearCovers reports that it failed', async () => {
+    await expect(clearCovers(locked())).rejects.toThrow('locked')
+  })
+})
+
 describe('clearCovers', () => {
+  it('keeps the covers of games installed right now, and deletes the rest', async () => {
+    // 30 was installed earlier this session and isn't in the latest read
+    // (uninstalled, or on a drive gone to sleep).
+    noteInstalledSteamGames(['20', '30'])
+    noteInstalledSteamGames(['20'])
+    const deps = fakeDeps(['10.jpg', '20.png', '30.webp', '40.jpg', '20.jpg.tmp'])
+
+    await clearCovers(deps)
+
+    expect(deps.deleted.sort()).toEqual(['10.jpg', '20.jpg.tmp', '30.webp', '40.jpg'])
+  })
+
+  it('looks up again a game whose cover a disconnect deleted', async () => {
+    const lookUp = vi.fn<InstalledCoverDeps['lookUp']>(async () => ({ urls: {}, failedIds: [] }))
+    const deps = { ...fakeDeps(), lookUp, now: () => 0 }
+    noteInstalledSteamGames(['5'])
+    await syncInstalledCovers(['5'], deps)
+    // 5's drive went to sleep: it isn't in the latest read.
+    noteInstalledSteamGames([])
+    await clearCovers(deps)
+    noteInstalledSteamGames(['5'])
+    await syncInstalledCovers(['5'], deps)
+    expect(lookUp).toHaveBeenCalledTimes(2)
+  })
+
   it('deletes every file in the covers folder', async () => {
     const deps = fakeDeps(['10.jpg', '20.png', '30.jpg.tmp'])
 
@@ -395,7 +447,7 @@ describe('syncCovers: cleanup and installed games', () => {
   })
 
   it('removes nothing before the installed list has been read', async () => {
-    await clearCovers(fakeDeps())
+    await resetSteamCoverSessionForTests()
     const deps = fakeDeps(['10.jpg', '99.jpg'])
     await syncCovers([game('10')], deps)
     expect(deps.deleted).toEqual([])
@@ -490,12 +542,17 @@ describe('syncInstalledCovers', () => {
     expect(deps.fetchImage).not.toHaveBeenCalled()
   })
 
-  it('looks games up again after a disconnect cleared the covers', async () => {
-    const deps = installedDeps([], async () => ({ urls: {}, failedIds: [] }))
+  it('keeps an installed game’s cover through a disconnect, so it needs no new lookup', async () => {
+    const deps = installedDeps([], async (ids) => ({
+      urls: Object.fromEntries(ids.map((id) => [id, CAP(id)])),
+      failedIds: []
+    }))
+    noteInstalledSteamGames(['5'])
     await syncInstalledCovers(['5'], deps)
     await clearCovers(deps)
+    expect(deps.deleted).toEqual([])
     await syncInstalledCovers(['5'], deps)
-    expect(deps.lookUp).toHaveBeenCalledTimes(2)
+    expect(deps.lookUp).toHaveBeenCalledTimes(1)
   })
 
   it('does not run for a sync queued before a disconnect', async () => {
