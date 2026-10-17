@@ -1,9 +1,13 @@
+import { useCallback, useRef } from 'react'
 import { APP_NAME } from '@shared/app-info'
 import { LIBRARY_ENTRIES, type Screen } from './navigation'
+import UpdateNotice from './UpdateNotice'
+import type { Updates } from './use-updates'
 
 interface SidebarProps {
   screen: Screen
   onSelect: (screen: Screen) => void
+  updates: Updates
 }
 
 const ENTRY_BASE =
@@ -41,7 +45,9 @@ function GearIcon(): React.JSX.Element {
 // pinned to the bottom. Store names only, no store logos (docs/brand.md: logos
 // only as small badges on games). Entries are real buttons, so they work from
 // the keyboard; the current one carries aria-current.
-function Sidebar({ screen, onSelect }: SidebarProps): React.JSX.Element {
+function Sidebar({ screen, onSelect, updates }: SidebarProps): React.JSX.Element {
+  const settingsRef = useRef<HTMLButtonElement>(null)
+  const focusSettings = useCallback(() => settingsRef.current?.focus(), [])
   return (
     <div className="flex h-full flex-col gap-3 p-2">
       <p className="truncate font-display text-sm font-semibold">{APP_NAME}</p>
@@ -58,8 +64,22 @@ function Sidebar({ screen, onSelect }: SidebarProps): React.JSX.Element {
           </button>
         ))}
       </nav>
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col gap-2">
+        <UpdateNotice
+          notice={updates.notice}
+          onDownload={updates.download}
+          onLater={(version) => {
+            updates.later(version)
+            // Later removes the notice with the button in it; the Settings
+            // entry right below takes the focus.
+            settingsRef.current?.focus()
+          }}
+          onRestart={updates.restart}
+          quiet={screen === 'settings'}
+          onFocusLost={focusSettings}
+        />
         <button
+          ref={settingsRef}
           type="button"
           onClick={() => onSelect('settings')}
           aria-current={screen === 'settings' ? 'page' : undefined}

@@ -104,7 +104,7 @@ Built in step 2 (`app/src/renderer/src/privacy-policy.ts`) with what the app doe
 - `autoInstallOnAppQuit` follows the switch (`false` until settings.json is read, and after Restart now). It only has an effect once an update was downloaded.
 - `allowPrerelease = false` and `allowDowngrade = false`.
 
-**Never in development:** unpackaged builds don't check (electron-updater skips them, and main doesn't start the timer). The Settings group says "Updates are off in development builds." If electron-updater can't start in an installed copy (it refuses a version that isn't valid semver), the window still opens, nothing is checked, and Settings says "Updates aren't available in this copy" (`updaterUnavailable`).
+**Never in development:** unpackaged builds don't check (electron-updater skips them, and main doesn't start the timer). The Settings group says "Updates are off in development builds." If electron-updater can't start in an installed copy (it refuses a version that isn't valid semver), the window still opens, nothing is checked, and Settings says "Updates aren't available in this copy." (`updaterUnavailable`).
 
 **Setting:** `checkForUpdates: boolean` in a new `settings.json`. Plain JSON, saved through one queue with temp-file-then-rename like the other stores.
 
@@ -135,10 +135,10 @@ Built in step 2 (`app/src/renderer/src/privacy-policy.ts`) with what the app doe
 
 **What the user sees:**
 
-1. **Available:** a small notice at the bottom of the sidebar, above Settings: "Version X.Y.Z is available", with **Download** and **Later**. Later hides it for that version until the app restarts.
+1. **Available:** a small notice at the bottom of the sidebar, above Settings: "Version X.Y.Z is available", with **Download** and **Later**. Later hides it for that version until the app restarts; a download the user then starts for that version undoes Later, so its failure shows again.
 2. **Downloading:** "Downloading update… NN%".
 3. **Ready:** "Update ready", with **Restart now**. Without a click, the update installs when the user quits the app, if the switch was on when the download finished: electron-updater sets up install-on-quit at that moment only. An update downloaded with the switch off installs only through Restart now, even if the switch is turned on later in that session.
-4. **Settings:** the same state as text: "You're up to date (version X)", "Checking…", "Version X is available", "Downloading… NN%", "Ready to install: restart the app", or a problem.
+4. **Settings:** the same state as text: "Checking your update settings…" (until main's status is read), "Version X." (before any check, common with the switch off), "You're up to date (version X).", "Checking for updates…", "Version X is available.", "Downloading version X…" with a progress bar and the percent beside it (the text stays the same, so it isn't re-announced every percent), "Ready to install: restart the app.", or a problem. After a failed download its Download button reads "Download again", as in the notice. If the switch can't be saved: "Couldn't save your choice. Try again.", and the switch shows what main still uses. Check now is busy only while its own press waits; during an automatic check it can be pressed and joins that check.
 
 **Problems** (friendly, never raw):
 

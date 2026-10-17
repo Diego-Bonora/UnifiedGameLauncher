@@ -11,6 +11,7 @@ import { useHandOff } from './use-hand-off'
 import { useManualActions } from './use-manual-actions'
 import { useManualGames } from './use-manual-games'
 import { useSteamLibrary } from './use-steam-library'
+import { useUpdates } from './use-updates'
 
 const SIDEBAR_ID = 'app-sidebar'
 
@@ -44,6 +45,7 @@ function App(): React.JSX.Element {
   }, [])
   const manualActions = useManualActions(manual, focusInstalledHeading)
   const favorites = useFavorites()
+  const updates = useUpdates()
   const handOff = useHandOff((store) => {
     if (store === 'epic') epic.reloadGames()
     if (store === 'manual') manual.reload()
@@ -137,7 +139,7 @@ function App(): React.JSX.Element {
               '-translate-x-full transition-[transform,visibility] max-md:invisible'
         }`}
       >
-        <Sidebar screen={screen} onSelect={select} />
+        <Sidebar screen={screen} onSelect={select} updates={updates} />
       </aside>
 
       {/* Inert while the drawer is open: Tab and screen readers stay in the
@@ -188,7 +190,12 @@ function App(): React.JSX.Element {
           )}
 
           {screen === 'settings' ? (
-            <SettingsScreen steam={steam} epic={epic} focusHeading={settingsFromButton} />
+            <SettingsScreen
+              steam={steam}
+              epic={epic}
+              updates={updates}
+              focusHeading={settingsFromButton}
+            />
           ) : (
             <LibraryScreen
               view={screen}

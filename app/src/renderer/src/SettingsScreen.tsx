@@ -4,10 +4,13 @@ import DisconnectSteamDialog from './DisconnectSteamDialog'
 import EpicCoverKeyForm from './EpicCoverKeyForm'
 import type { EpicLibrary } from './use-epic-library'
 import type { SteamLibrary } from './use-steam-library'
+import type { Updates } from './use-updates'
+import UpdatesSection from './UpdatesSection'
 
 interface SettingsScreenProps {
   steam: SteamLibrary
   epic: EpicLibrary
+  updates: Updates
   // Opened from an "Open Settings" button: that button is gone now, so
   // keyboard focus moves to this screen's heading instead of the page body.
   focusHeading: boolean
@@ -17,7 +20,12 @@ interface SettingsScreenProps {
 // own. The forms behave exactly as they did on the old single page; their
 // state (connection, saving, errors) lives in the app-wide hooks, so leaving
 // this screen mid-save loses nothing but the text typed into an input.
-function SettingsScreen({ steam, epic, focusHeading }: SettingsScreenProps): React.JSX.Element {
+function SettingsScreen({
+  steam,
+  epic,
+  updates,
+  focusHeading
+}: SettingsScreenProps): React.JSX.Element {
   const [apiKeyInput, setApiKeyInput] = useState('')
   const headingRef = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
@@ -195,6 +203,8 @@ function SettingsScreen({ steam, epic, focusHeading }: SettingsScreenProps): Rea
           </p>
         )}
       </section>
+
+      <UpdatesSection updates={updates} />
 
       <AboutSection />
     </div>
