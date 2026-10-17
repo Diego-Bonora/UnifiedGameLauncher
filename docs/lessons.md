@@ -10,6 +10,14 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-10-17 — Timing samples taken with timers inside a hidden window were wrong
+**What happened:** To check that Check now stays busy for a whole update check, I sampled the button with `setInterval` inside the page via CDP. The dev window sat behind other windows, and Chromium throttles timers in a page that isn't visible: one run showed the button going idle too early, another hung for over 30 s. Main's own log and a sampler running in Node (one `Runtime.evaluate` every 100 ms) showed the app was right all along.
+**Rule going forward:** Time UI behaviour from outside the page: a Node loop that calls `Runtime.evaluate`, never `setTimeout`/`setInterval` inside the page, unless the window is known to be visible. When a measurement contradicts main's log, suspect the measurement first.
+
+## 2026-10-17 — A dependency's timeout didn't apply under Electron
+**What happened:** electron-updater has a 60 s request timeout, but it waits for a `socket` event that Electron's network module never emits (`ClientRequest`'s events in `electron.d.ts` list no `socket`). A stalled check or download would have left "Checking…" or "Downloading NN%" up for the whole run. A reviewer suspected it; Electron's type definitions confirmed it in a minute.
+**Rule going forward:** When a library's safety net (timeout, retry, cancel) matters, read how it is wired and check it works in the runtime it really runs in (Electron's `net` is not Node's `http`). Otherwise add our own limit around the call, and keep the library's late answers from changing state once ours has fired.
+
 ## 2026-10-17 — A template `.gitignore` kept electron-builder's `build/` folder out of git
 **What happened:** While adding the new icon, `git status` didn't list `app/build/`. The root `.gitignore` came from a generic template, and its `build/` line (meant for build output) also matched electron-builder's buildResources folder. `app/build/icon.ico` and `icon.png` had only ever existed on the Mac, so a fresh clone and every CI installer lacked them, and electron-builder fell back to its default icon without failing. Nobody noticed because local builds had the files.
 **Rule going forward:** After adding a file the build needs, check `git status` lists it (`git check-ignore -v <file>` says which rule hides it). Treat generic ignore lines (`build/`, `dist/`, `out/`) as suspects in any folder whose name a tool uses for inputs. Un-ignore only the exact folder (`!app/build/`).

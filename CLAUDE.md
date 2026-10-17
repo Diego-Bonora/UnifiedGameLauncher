@@ -82,3 +82,5 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 - [2026-10-17] Trusted `npm ls` and a spec's install path; the real `app.asar` and electron-builder's code differed. List a packaged `app.asar` to know what ships; read the tool's code before naming its paths.
 - [2026-10-17] A disconnect guard counter was taken after the awaits that read the connection, so a read in between still saved data. Take guards before the first state read, re-check after each await, loop on a shared in-flight promise.
 - [2026-10-17] The root `.gitignore`'s template `build/` line hid `app/build/` (electron-builder's icon folder), so CI never had the icon. After adding a file the build needs, check `git status` lists it.
+- [2026-10-17] Sampled UI timing with timers inside a hidden dev window; Chromium throttled them and the readings were wrong. Time from Node (`Runtime.evaluate` in a loop), not page timers.
+- [2026-10-17] electron-updater's request timeout never fires under Electron (`net` emits no `socket`). Check a library's timeout/retry works in Electron before relying on it; else wrap the call with our own limit.

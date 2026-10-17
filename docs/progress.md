@@ -3,15 +3,27 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1 (Disconnect, fixes), 2 (About, privacy, licenses) and 3 (app icon) done (776 tests). The Milestone 6 Windows test is half done, a separate task.
+Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1–4 done (Disconnect, About/privacy/licenses, app icon, auto-updates; 840 tests). No GitHub release exists yet, so installed copies show "Couldn't check for updates last time." The Milestone 6 Windows test is half done, a separate task.
 
 ## In Progress
-Milestone 7, one step at a time: 4) auto-updates, 5) release workflow, 6) Windows test of the release path.
+Milestone 7: 5) release workflow, 6) Windows test of the release path.
 
 ## Next Up
-Milestone 7 Step 4: auto-updates (spec section 4), plus the Step 2 open items listed in its entry below.
+Milestone 7 Step 5 (spec section 7): CI uploads the installer, `latest.yml` and blockmap to a draft release on a `v*` tag; early licenses check; first test release 0.9.0.
 
 ---
+
+## 2026-10-17 (Milestone 7 Step 4: auto-updates)
+**Built (`b366609` main, `d7e2f3d` window; 840 tests, 776 before):**
+- Main: `storage/settings-store.ts` (missing = on, unreadable = off and untouched until the switch is flipped); `updates/update-controller.ts` (the one state machine; 10 s / 6 h schedule, 60 s check timeout, 2 min stall / 10 min before first progress, Restart latch, failed version remembered until a check succeeds); `updates/electron-updater-port.ts` (only electron-updater import; `autoDownload` off); `ipc/updates*.ts`; inactive fallback when electron-updater can't start.
+- Window: `update-messages.ts` (all wording), `use-updates.ts`, `UpdateNotice.tsx` (sidebar), `UpdatesSection.tsx` (Settings); focus recovery when buttons vanish, also with the window in the background.
+- Licenses: 26 components; `lazy-val@1.0.5` exception (MIT, no license file upstream). Privacy policy: GitHub, settings, the `.updaterId` install ID (user's call: disclose). Test ties main's literal hosts and `electron-builder.yml` publish to the policy.
+**Decisions (user's calls, all in release.md §4):** checks pause while a version is offered/downloading/ready; install-on-quit only if the switch was on when the download finished; Later undone by the user's own download; post-save failure and a never-started Restart accepted as limits.
+**Read in electron-updater's code:** sha512 checked for full, partial and cached downloads; no release / no `latest.yml` rejects the check; its request timeout never fires under Electron (no `socket` event).
+**Fixed by review (6 rounds main, 3 window):** second installer on a double Restart; stuck checks/downloads; undisclosed install ID; a fix that hid Download again; Check now couldn't join an automatic check; lost focus.
+**Verified:** dev app via CDP with a temporary scripted fake updater (reverted): every notice/Settings state, focus paths, keyboard switch, 600 px drawer; real repo check fails cleanly; local NSIS build writes `app-update.yml` (this repo, no `publisherName`).
+**Next:** Step 5.
+**Blocked by:** nothing. Open: `npm audit` high advisory for Electron <=41.10.5 (we're on 39; pre-existing, plan an upgrade before 1.0); real download/install/SmartScreen/lock after Restart are Step 6; notice hidden in the closed drawer below 768 px.
 
 ## 2026-10-17 (Milestone 7 Step 3: app icon)
 **Built (776 tests, 770 before):**
@@ -47,34 +59,3 @@ Milestone 7 Step 4: auto-updates (spec section 4), plus the Step 2 open items li
 **Verified (macOS dev app + CDP, StrictMode):** version; Copy link copies exactly the URL, the window's own clipboard write is refused; dialogs scroll; Esc/Close return focus; 600 px.
 **Next:** Step 3 (app icon).
 **Blocked by:** nothing. Open: Step 4 must add `lazy-val` (electron-updater, no license file) to `LICENSE_EXCEPTIONS`, the updater lines to the policy, and a test tying main's hosts to the policy; Step 5 an early CI licenses check; Step 6 confirm the program folder. Known gaps: a package's CSS importing another package, Tailwind plugins, unquoted `@import url(x)`; `spellcheck: false` not observed in the app.
-
-## 2026-10-17 (Milestone 7 spec and Step 1)
-**Decided (spec `docs/features/release.md`, user's calls):**
-- **Release basics:** v1 keeps the name UnifiedGameLauncher and ships under MIT.
-- **Updates:** the app asks before downloading. A Settings switch is on by default; an unreadable `settings.json` counts as off.
-- **About and privacy:** About + privacy go at the bottom of Settings. Copy link goes through a main IPC with no arguments; no `https://` is added to the allow-list.
-- **Release flow:** CI uploads to a draft release on a `v*` tag. The test releases are 0.9.0 → 0.9.1, then 1.0.0. `appId`, the package name and the repo are kept for good.
-- **Disconnect** deletes account data only (Steam ID, saved library, covers of games not in the latest installed read); the key and favorites stay.
-- **Spec review (16 findings, folded in):** `autoDownload` must be switched off; the privacy draft was inaccurate (updater cache in `%LOCALAPPDATA%`, no installed list saved); some bundled licenses aren't MIT; the updater states and CI edge cases were missing.
-
-**Built (738 tests, 709 before):**
-- `manual-covers.ts`: Change .exe to an exe without an icon drops the old icon. A folder that can't be listed stops the sync.
-- `cover-files.ts` `listCoverFilesIn` rejects on anything but ENOENT; each caller decides what that means.
-- Typed `SteamConnectResult`, `SteamSetApiKeyResult`, `SteamDisconnectResult`; wording in new `steam-messages.ts`.
-- Disconnect:
-  - `steam-auth.ts`: data first, connection last, stays connected on failure.
-  - The `disconnectGeneration` counter is taken before the state read; `waitForDisconnects()` loops; a read overtaken by a disconnect saves nothing.
-  - `cover-cache.ts`: `latestInstalled` decides what `clearCovers` keeps.
-  - UI: `DisconnectSteamDialog.tsx`, the button and focus return in `SettingsScreen.tsx`, `'done' | 'failed' | 'busy'` in `use-steam-library.ts`.
-- `ipc/app-handle.ts` `handleFromApp` (the sender check, moved from `manual.ts`) now wraps every handler in steam, steam-auth, epic, favorites and manual.
-- `dialog-buttons.ts`: shared button styles.
-
-**Fixed by review (3 rounds, last clean):** a read already checking the connection still saved the library after Disconnect; covers of games uninstalled this session survived it; a stuck error line; a second click closed the dialog; no sender check outside manual games.
-
-**Verified:**
-- **Dev app (macOS, CDP):** the dialog survives StrictMode; Esc and Cancel return focus; a real Disconnect deletes the Steam ID and library and keeps the key (dev data backed up and restored).
-- **Dev app and production build (`file://`):** the Steam, Epic, favorites and manual calls pass the sender check.
-- **Not verified:** installed covers surviving Disconnect on a real PC (no Steam games on the Mac); that is Windows test item 7.
-
-**Next:** Step 2 (About, privacy, licenses).
-**Blocked by:** nothing. Open: the Milestone 6 Windows test items; the spec's open items (SmartScreen during an update, the single-instance lock after Restart now, the sha512 / missing `latest.yml` behaviour, to be read in step 4); older open items in progress-archive.md.
