@@ -1,7 +1,7 @@
 {
   "name": "unified-game-launcher",
   "productName": "UnifiedGameLauncher",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "description": "One cover-art library for your Steam and Epic games (Windows).",
   "main": "./out/main/index.js",
   "author": "Diego-Bonora",
