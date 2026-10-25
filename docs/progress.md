@@ -3,7 +3,7 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1–5 done (Disconnect, About/privacy/licenses, app icon, auto-updates, release workflow; 888 tests). 0.9.0 is cut (`bdc470c`, run 40159108918 green); its draft holds all three files, unpublished, so installed copies find no release yet. The Milestone 6 Windows test is half done, a separate task.
+Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `release.md`): Steps 1–5 done (Disconnect, About/privacy/licenses, app icon, auto-updates, release workflow; 888 tests). 0.9.0 is cut (`bdc470c`, run 40159108918 green); its draft holds all three files, unpublished, so installed copies find no release yet. The Milestone 6 Windows test is half done, a separate task.
 
 ## In Progress
 Milestone 7 Step 6: the Windows test of the release path (release.md §8).
