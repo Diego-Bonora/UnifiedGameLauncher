@@ -10,6 +10,18 @@
 **Rule going forward:** [the concrete actionable rule to follow next time]
 -->
 
+## 2026-10-24 — Prettier run on the whole repo, then a zsh variable made the damage check look clean
+**What happened:** To format a few new scripts I ran `npx prettier --write scripts ..` from `app/`. The `..` formatted the whole repo: 20 Markdown files under `.claude/`, `docs/` and `README.md` gained blank lines and padded table rows. My `git checkout` to undo it was (rightly) blocked as destructive, so the user ran it. Before that, I checked "only whitespace changed" with `F="a b c"; git diff -w -- $F`; zsh passed the list as one path, git matched nothing, and the empty output looked like proof. A rerun with real arguments found 3 files with non-whitespace (table) changes.
+**Rule going forward:** Run formatters only on the exact files changed (`npx prettier --write <file> <file>`), never on a folder above `app/`. An empty result from a check is evidence only if the check could have found something: in zsh pass lists with `set -- a b c` and `"$@"`, or literally. When a tool touches files you didn't mean to, list them, show the user the diff, and let them restore; rebuild your own mixed files from `git show HEAD:<file>` plus your edits.
+
+## 2026-10-24 — `electron-builder --win nsis` built arm64 although the config says x64
+**What happened:** A local NSIS build on the Mac came out as `win-arm64-unpacked` and an arm64 installer, though `electron-builder.yml` lists `arch: x64`. Naming a target on the command line builds for the host's architecture. CI only ever got x64 because the Windows runner is x64, and the asar check read `dist/win-unpacked`, which an arm64 build doesn't make.
+**Rule going forward:** Pass the architecture explicitly (`--win nsis --x64`) wherever a target is named on the command line, and look at the output folder name after a build on a new machine or runner.
+
+## 2026-10-24 — A write token in the same job as `npm ci` belongs to every dependency
+**What happened:** The first release workflow gave the tag job `contents: write` and let electron-builder upload. Review found the token reachable by dependency code twice over: `actions/checkout` keeps it in `.git/config` by default, and even with `persist-credentials: false`, any install script could patch `node_modules/electron-builder`, which then ran with the token. Unsigned updates mean a swapped installer would reach every installed copy.
+**Rule going forward:** A job that holds a write token installs and runs no dependencies. Build and test in a read-only job and hand the files over as an artifact; a separate write job runs only our own dependency-free script, with GitHub's actions pinned to commit SHAs and checkouts at `persist-credentials: false`. Treat everything in the artifact as untrusted input there (validate file names before using them as paths).
+
 ## 2026-10-17 — Timing samples taken with timers inside a hidden window were wrong
 **What happened:** To check that Check now stays busy for a whole update check, I sampled the button with `setInterval` inside the page via CDP. The dev window sat behind other windows, and Chromium throttles timers in a page that isn't visible: one run showed the button going idle too early, another hung for over 30 s. Main's own log and a sampler running in Node (one `Runtime.evaluate` every 100 ms) showed the app was right all along.
 **Rule going forward:** Time UI behaviour from outside the page: a Node loop that calls `Runtime.evaluate`, never `setTimeout`/`setInterval` inside the page, unless the window is known to be visible. When a measurement contradicts main's log, suspect the measurement first.

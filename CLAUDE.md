@@ -16,7 +16,8 @@ Run from `app/`:
 - Run tests: `npm test` (Vitest)
 - Lint / format: `npm run lint`, `npm run format`
 - Build: `npm run build`
-- Deploy: `npm run dist`, then upload to a GitHub Release (auto-updates read it via electron-updater)
+- Local installer: `npm run dist` (never uploads)
+- Release: bump `version`, push a `v*` tag; CI uploads to a draft GitHub Release, the user publishes it (steps in docs/features/release.md §7)
 
 ## Coding Rules
 - TypeScript `strict`; no `any` without a comment saying why
@@ -84,3 +85,6 @@ Store research, security and privacy draft: @docs/sources/PROJECT_PLAN.md
 - [2026-10-17] The root `.gitignore`'s template `build/` line hid `app/build/` (electron-builder's icon folder), so CI never had the icon. After adding a file the build needs, check `git status` lists it.
 - [2026-10-17] Sampled UI timing with timers inside a hidden dev window; Chromium throttled them and the readings were wrong. Time from Node (`Runtime.evaluate` in a loop), not page timers.
 - [2026-10-17] electron-updater's request timeout never fires under Electron (`net` emits no `socket`). Check a library's timeout/retry works in Electron before relying on it; else wrap the call with our own limit.
+- [2026-10-24] `prettier --write scripts ..` reformatted 20 unrelated docs, and a zsh `$F` list made the damage check match nothing. Format only the exact files changed; in zsh pass lists via `set --` / `"$@"`.
+- [2026-10-24] `electron-builder --win nsis` built arm64 on the Mac despite `arch: x64`. Pass `--x64` wherever a target is named on the command line.
+- [2026-10-24] A write token in a job that runs `npm ci` is reachable by every dependency. Write jobs install nothing; build read-only and hand files over as an artifact.

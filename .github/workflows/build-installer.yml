@@ -1,17 +1,29 @@
 # Builds the Windows installer on a Windows runner (the dev machine is macOS,
 # and NSIS installers are built most reliably on Windows itself).
-# Build-only for now: it uploads the installer as a workflow artifact and does
-# NOT publish a GitHub Release. Publishing is added with Milestone 7.
+# docs/features/release.md, section 7: every run builds; a v* tag push also
+# uploads the build to a draft GitHub Release, which the user publishes by
+# hand. Tag runs are told apart by the event (plus the ref), because a manual
+# run can also start on a tag.
+#
+# Two jobs so that no dependency code ever runs next to a write token:
+# `build` installs, builds and tests with a read-only token; `publish` holds
+# contents: write, installs nothing, and runs only scripts/release.mjs
+# (plain Node, no dependencies) on the files `build` handed over.
 name: Build installer
 
 on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: read
+
+# Two runs for one tag could each create a draft; the second waits instead.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -21,7 +33,11 @@ jobs:
         working-directory: app
         shell: bash
     steps:
+      # Nothing later pushes or fetches, so the job's token isn't left in
+      # .git/config.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -29,29 +45,81 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
 
+      # Tag runs only, before anything is installed: the tag must be v +
+      # package.json's plain X.Y.Z version and point at this run's commit (a
+      # re-run of an old run keeps its old commit), and no published release
+      # may have it. The publish job checks all of it again.
+      - name: Check the tag and existing releases
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/release.mjs before
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
       # `npm ci` installs exactly what package-lock.json says, so CI matches local.
       - run: npm ci
+
+      # First, so a stale licenses list or a new license fails within minutes:
+      # typecheck, the Vite build, the preload dependency check and the
+      # licenses check (scripts/licenses.mjs).
+      - run: npm run build
 
       - run: npm run lint
       - run: npm test
 
-      # Runs typecheck, the Vite build, then electron-builder (NSIS, no publish).
-      - run: npm run dist
+      # The same flags as `dist` in app/package.json (JSON has no comments, so
+      # this note is on this side only): change both together. --x64 because
+      # naming a target on the command line builds for the runner's own
+      # architecture, whatever electron-builder.yml says. Its afterPack hook
+      # (scripts/check-packaged-app.mjs) refuses a package with src/** before
+      # the installer is made.
+      - run: npx electron-builder --win nsis --x64 --publish never
 
-      # Guards the open item from progress.md: source files must not ship in the
-      # packaged app. Only a root-level /src (or \src on Windows) counts, since
-      # dependencies may legitimately contain their own src folders.
-      - name: Check the packaged app has no source files
-        run: |
-          npx --yes @electron/asar list dist/win-unpacked/resources/app.asar > asar-files.txt
-          if grep -Eq '^[/\\]src([/\\]|$)' asar-files.txt; then
-            echo "src/** was packaged into app.asar:"
-            grep -E '^[/\\]src([/\\]|$)' asar-files.txt
-            exit 1
-          fi
-
+      # Everything a release needs; manual runs keep it as the downloadable
+      # installer, as before.
       - uses: actions/upload-artifact@v4
         with:
           name: installer
-          path: app/dist/*-setup.exe
+          path: |
+            app/dist/*-setup.exe
+            app/dist/*-setup.exe.blockmap
+            app/dist/latest.yml
           if-no-files-found: error
+
+  publish:
+    needs: build
+    # The ref test too, so adding a branch to `push` later can't start a
+    # publishing run.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Nothing is built here, so any runner will do.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: app
+    # The actions here run next to the write token, so each is pinned to a
+    # commit rather than a tag that can move. These are the commits v4 pointed
+    # at on 2026-10-24 (checkout v4.4.0, setup-node v4.4.0, download-artifact
+    # v4.3.0); update them by hand, on purpose.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Node only, no npm install: scripts/release.mjs uses node: built-ins.
+      # No `cache` either (setup-node v5 would turn caching on by default).
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: app/.nvmrc
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: installer
+          path: app/dist
+
+      # Checks the tag, commit and releases again, uploads the three files to
+      # the draft (making it if needed), and confirms the draft holds them.
+      - name: Upload to the draft release
+        run: node scripts/release.mjs publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

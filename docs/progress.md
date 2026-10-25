@@ -3,15 +3,28 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1–4 done (Disconnect, About/privacy/licenses, app icon, auto-updates; 840 tests). No GitHub release exists yet, so installed copies show "Couldn't check for updates last time." The Milestone 6 Windows test is half done, a separate task.
+Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1–5 done (Disconnect, About/privacy/licenses, app icon, auto-updates, release workflow; 888 tests). The release workflow has never run on a tag: no tag or GitHub release exists yet, so installed copies still show "Couldn't check for updates last time." The Milestone 6 Windows test is half done, a separate task.
 
 ## In Progress
-Milestone 7: 5) release workflow, 6) Windows test of the release path.
+Milestone 7: the first test release (0.9.0), then 6) the Windows test of the release path.
 
 ## Next Up
-Milestone 7 Step 5 (spec section 7): CI uploads the installer, `latest.yml` and blockmap to a draft release on a `v*` tag; early licenses check; first test release 0.9.0.
+Cut 0.9.0 (release.md §7 "Cutting a release"): version 0.9.0, push `main`, push plain tag `v0.9.0`, check the draft's three files, publish by hand. Ask the user before pushing the tag.
 
 ---
+
+## 2026-10-24 (Milestone 7 Step 5: release workflow)
+**Built (888 tests, 840 before):**
+- `.github/workflows/build-installer.yml`: `build` job (windows, read-only token, every run): on a tag, `release.mjs before` before `npm ci`; then `npm run build` first (licenses check fails early), lint, test, `electron-builder --win nsis --x64 --publish never`, artifact `installer` (exe, blockmap, `latest.yml`). `publish` job (ubuntu, tag pushes with `refs/tags/v` only, `contents: write`): no npm install, actions pinned to commit SHAs (checkout/setup-node v4.4.0, download-artifact v4.3.0), runs `release.mjs publish`. Both checkouts `persist-credentials: false`; concurrency per ref.
+- `app/scripts/release.mjs` (the command, always runs) + `release-checks.mjs` (library, no imports): tag = `v` + plain X.Y.Z, tag still points at the run's commit (re-runs keep their old commit), no published release under either spelling; publish reuses only an exact-tag draft (refuses the other spelling and two drafts), creates once (never retried), deletes same-named files then uploads (3 tries, 5 s apart, 10 min each), polls until the draft holds all three at the built sizes. `latest.yml`'s `path` must be a bare `*-setup.exe` name. Requests retry network errors/5xx.
+- `app/scripts/check-packaged-app.mjs`: electron-builder `afterPack` hook, fails on `src/**` in app.asar before the installer exists (real build checked both ways). `@electron/asar` 3.4.1 pinned as a devDependency (electron-builder's own pin).
+- `electron-builder.yml`: `afterPack`, `releaseType: draft`; `dist` gets `--x64`; CLAUDE.md Dev Commands; release.md §7.
+**Decisions:** user's call after review: split build/publish so no dependency code runs next to the write token; electron-builder no longer uploads (spec bullet updated).
+**Read in electron-builder's code:** with a published release for the tag it skips the upload with only a warning; tags match with or without `v`; afterPack runs before NSIS. A CLI target builds the host's arch (arm64 on the Mac) despite `arch: x64`.
+**Fixed by review (5 rounds, last clean):** write token reachable by dependency code; source check after upload; an old run's re-run overwriting a newer draft; silent exit 0; untested publish flow (now a fake GitHub; 17 mutations caught); `latest.yml` path steering reads; other-spelling draft.
+**Verified:** checks against the real repo (read-only); tag lookup vs `git ls-remote`; local x64 NSIS builds (real `latest.yml` is the fixture).
+**Next:** cut 0.9.0, then Step 6.
+**Blocked by:** nothing. Open: the upload code has never run against real GitHub; a hidden `starter` asset after a broken upload may need the draft deleted; annotated tags untested (use plain); `npm audit` Electron advisory (upgrade before 1.0).
 
 ## 2026-10-17 (Milestone 7 Step 4: auto-updates)
 **Built (`b366609` main, `d7e2f3d` window; 840 tests, 776 before):**
@@ -46,16 +59,3 @@ Milestone 7 Step 5 (spec section 7): CI uploads the installer, `latest.yml` and 
 
 **Next:** Step 4 (auto-updates).
 **Blocked by:** nothing. Open: `resources/icon.png` ships in `app.asar` unused (template leftover, spec asks for it); nothing checks the committed icons against the SVG (a Chromium on another OS may anti-alias differently); the first CI installer with the new icon is still to be built.
-
-## 2026-10-17 (Milestone 7 Step 2: About, privacy policy, licenses)
-**Built (`0517ddc`, 770 tests, 738 before):**
-- `LICENSE` (MIT) at the repo root; `package.json` `"license": "MIT"`.
-- Licenses: `scripts/bundled-packages-plugin.ts` records what each build bundles (incl. CSS `@import`s; unknown virtual modules fail). `scripts/licenses.mjs` adds the production tree and Electron, checks an SPDX allow-list + `LICENSE_EXCEPTIONS`, copies texts to `resources\licenses`. `npm run build` fails on a stale `generated/licenses.json`; `npm run licenses` rewrites it (10 components).
-- Installer no longer packs `scripts/`, `.nvmrc` (checked in `app.asar`).
-- Main: `ipc/app.ts`, `app-handlers.ts`, `shared/ipc/app-channels.ts`: `getVersion`, `copyProjectLink` (no payload; writes `PROJECT_URL`, reads it back). `spellcheck: false`.
-- Renderer: `AboutSection.tsx` (last group in Settings), `ModalDialog` `size="long"`, `LongTextDialog.tsx`, `privacy-policy.ts` (+ test tying folder names to the package name).
-**Decisions:** the list is committed (dev works, changes show in diffs). The policy lists only today's behaviour; GitHub/updates/settings lines come with Step 4. Spec corrected: program folder `%LOCALAPPDATA%\Programs\unified-game-launcher` (package name). PROJECT_PLAN.md §12 is a pointer.
-**Fixed by review (2 rounds):** Tailwind unlisted; `--write` after `npm run dev` dropped React; no exception path; "Copied" on a silent clipboard failure; timer race; locale sort; `?commonjs-external` ids (not re-reviewed, user's call).
-**Verified (macOS dev app + CDP, StrictMode):** version; Copy link copies exactly the URL, the window's own clipboard write is refused; dialogs scroll; Esc/Close return focus; 600 px.
-**Next:** Step 3 (app icon).
-**Blocked by:** nothing. Open: Step 4 must add `lazy-val` (electron-updater, no license file) to `LICENSE_EXCEPTIONS`, the updater lines to the policy, and a test tying main's hosts to the policy; Step 5 an early CI licenses check; Step 6 confirm the program folder. Known gaps: a package's CSS importing another package, Tailwind plugins, unquoted `@import url(x)`; `spellcheck: false` not observed in the app.

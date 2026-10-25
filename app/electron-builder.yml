@@ -3,6 +3,8 @@ appId: io.github.diego-bonora.unifiedgamelauncher
 productName: UnifiedGameLauncher
 directories:
   buildResources: build
+# Fails the build if src/** was packed, before the installer exists.
+afterPack: ./scripts/check-packaged-app.mjs
 files:
   - '!**/.vscode/*'
   - '!src/**'
@@ -38,3 +40,9 @@ publish:
   provider: github
   owner: Diego-Bonora
   repo: UnifiedGameLauncher
+  # electron-builder never uploads in CI (`--publish never`; the workflow's
+  # publish job uploads, see scripts/release.mjs). This only matters
+  # if someone runs it with --publish by hand: the result is still a draft,
+  # not a release installed copies would see. Only an EP_DRAFT or
+  # EP_PRE_RELEASE environment variable outranks it.
+  releaseType: draft

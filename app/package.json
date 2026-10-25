@@ -29,7 +29,7 @@
     "icon": "electron scripts/render-icon.mjs",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder --win nsis --publish never"
+    "dist": "npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -43,6 +43,7 @@
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@electron/asar": "3.4.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
