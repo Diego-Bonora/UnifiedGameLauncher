@@ -3,13 +3,13 @@
 > Full history in docs/progress-archive.md
 
 ## Current State
-Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1–5 done (Disconnect, About/privacy/licenses, app icon, auto-updates, release workflow; 888 tests). The release workflow has never run on a tag: no tag or GitHub release exists yet, so installed copies still show "Couldn't check for updates last time." The Milestone 6 Windows test is half done, a separate task.
+Milestones 0–4, the library layout and 6 are on `main`. Milestone 7 (spec `docs/features/release.md`): Steps 1–5 done (Disconnect, About/privacy/licenses, app icon, auto-updates, release workflow; 888 tests). 0.9.0 is cut (`bdc470c`, plain tag `v0.9.0`, run 40159108918 green): its draft holds the x64 installer, blockmap and `latest.yml` (version 0.9.0), not yet published, so installed copies still find no release. The Milestone 6 Windows test is half done, a separate task.
 
 ## In Progress
-Milestone 7: the first test release (0.9.0), then 6) the Windows test of the release path.
+Milestone 7 Step 6: the Windows test of the release path (release.md §8).
 
 ## Next Up
-Cut 0.9.0 (release.md §7 "Cutting a release"): version 0.9.0, push `main`, push plain tag `v0.9.0`, check the draft's three files, publish by hand. Ask the user before pushing the tag.
+The user publishes the 0.9.0 draft, then Step 6 on the Windows PC (release.md §8): install 0.9.0, About checks, cut 0.9.1 (ask before tagging) and test the update, then the remaining items. Afterwards: the rest of the Milestone 6 Windows test, the Electron upgrade, 1.0.0.
 
 ---
 
@@ -23,7 +23,7 @@ Cut 0.9.0 (release.md §7 "Cutting a release"): version 0.9.0, push `main`, push
 **Read in electron-builder's code:** with a published release for the tag it skips the upload with only a warning; tags match with or without `v`; afterPack runs before NSIS. A CLI target builds the host's arch (arm64 on the Mac) despite `arch: x64`.
 **Fixed by review (5 rounds, last clean):** write token reachable by dependency code; source check after upload; an old run's re-run overwriting a newer draft; silent exit 0; untested publish flow (now a fake GitHub; 17 mutations caught); `latest.yml` path steering reads; other-spelling draft.
 **Verified:** checks against the real repo (read-only); tag lookup vs `git ls-remote`; local x64 NSIS builds (real `latest.yml` is the fixture).
-**Next:** cut 0.9.0, then Step 6.
+**Next:** cut 0.9.0 (done the same day: draft complete, upload code worked first time), then Step 6.
 **Blocked by:** nothing. Open: the upload code has never run against real GitHub; a hidden `starter` asset after a broken upload may need the draft deleted; annotated tags untested (use plain); `npm audit` Electron advisory (upgrade before 1.0).
 
 ## 2026-10-17 (Milestone 7 Step 4: auto-updates)
